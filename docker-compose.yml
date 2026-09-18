@@ -1,110 +1,111 @@
-# Full-stack smoke test. Reads packages/trueforge/.env for secrets and
+# Full-stack Optimized for Dokploy
 # credentials; in-network DB/Redis targets are opinionated here so they do not
 # inherit host-dev localhost values. Postgres/Redis stay off the host network.
 name: trueforge
 
 services:
   postgres:
-    image: postgres:17
-    env_file:
-      - path: packages/trueforge/.env
-        required: true
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trueforge}
+      POSTGRES_USER: ${POSTGRES_USER:-trueforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - trueforge_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      - trueforge
 
-  # Shared by all server replicas: carries executor peering (cross-replica
-  # turn cancel via request-reply).
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
     restart: unless-stopped
+    networks:
+      - trueforge
 
-  # Serves both the API and the UI on one port.
   server:
     build:
       context: .
-      # From-source image; root Dockerfile is the npm-install prod recipe.
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     image: truefoundry-server:latest
-    ports:
-      # Host 8791 avoids conflict with host `pnpm dev` on 8790.
-      - '8791:8790'
     environment:
-      # Wins over env_file / image defaults so a host .env cannot flip this.
       NODE_ENV: production
-      # Inside the container; host mapping above is 8791.
+      HOST: 0.0.0.0
       PORT: 8790
-      # Host-facing origin for MCP OAuth callbacks (mapped port, not container PORT).
-      PUBLIC_BASE_URL: http://localhost:8791
-      # Compose network hosts — do not use packages/trueforge/.env localhost values.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      # Compose runs one replica but keeps peering on so the peered cancel path
-      # stays exercised. STANDALONE=false ⇒ Postgres + Redis.
-      # A single-process deployment can set STANDALONE=true and drop redis.
-      STANDALONE: 'false'
+      POSTGRES_DB: ${POSTGRES_DB:-trueforge}
+      POSTGRES_USER: ${POSTGRES_USER:-trueforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      STANDALONE: "false"
       REDIS_URL: redis://redis:6379
-    # Secrets and Postgres credentials (POSTGRES_USER, …).
-    # `environment` above overrides any colliding keys from this file.
-    env_file:
-      - path: packages/trueforge/.env
-        required: true
+      TRUEFORGE_API_KEY: ${TRUEFORGE_API_KEY:?TRUEFORGE_API_KEY is required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Probes GET /healthz; node is already in the image.
+    expose:
+      - "8790"
     healthcheck:
       test:
         [
-          'CMD',
-          'node',
-          '-e',
+          "CMD",
+          "node",
+          "-e",
           "fetch('http://127.0.0.1:8790/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 15s
-    # Above the app's default GRACEFUL_TIMEOUT_SECONDS (30) so SIGKILL does not
-    # cut off turn drain.
     stop_grace_period: 35s
     restart: unless-stopped
+    networks:
+      - trueforge
 
-  # Schedule controller: runs the periodic control loops (schedule dispatch) as a separate service.
   controller:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     image: truefoundry-server:latest
-    command: ['node', 'dist/controller-main.js']
+    command: ["node", "dist/controller-main.js"]
     environment:
       NODE_ENV: production
-      STANDALONE: 'false'
+      HOST: 0.0.0.0
+      STANDALONE: "false"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      # The controller is its own container, so localhost would be itself; `server` is
-      # the compose DNS name that resolves to the server container.
+      POSTGRES_DB: ${POSTGRES_DB:-trueforge}
+      POSTGRES_USER: ${POSTGRES_USER:-trueforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       SERVER_URL: http://server:8790
-    env_file:
-      - path: packages/trueforge/.env
-        required: true
+      TRUEFORGE_API_KEY: ${TRUEFORGE_API_KEY:?TRUEFORGE_API_KEY is required}
     depends_on:
       postgres:
         condition: service_healthy
       server:
         condition: service_healthy
-    # Above GRACEFUL_TIMEOUT_SECONDS (30) so SIGKILL does not cut off loop drain.
     stop_grace_period: 35s
     restart: unless-stopped
+    networks:
+      - trueforge
+
+volumes:
+  trueforge_postgres:
+
+networks:
+  trueforge:
+    driver: bridge
