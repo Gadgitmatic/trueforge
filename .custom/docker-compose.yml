@@ -37,6 +37,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        APP_VERSION: "0.2.0"
     image: truefoundry-server:latest
     environment:
       NODE_ENV: production
@@ -80,6 +82,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        APP_VERSION: "0.2.0"
     image: truefoundry-server:latest
     command: ["node", "dist/controller-main.js"]
     environment:
