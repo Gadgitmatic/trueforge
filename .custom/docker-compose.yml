@@ -35,7 +35,7 @@ services:
 
   server:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     image: truefoundry-server:latest
     environment:
@@ -78,7 +78,7 @@ services:
 
   controller:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     image: truefoundry-server:latest
     command: ["node", "dist/controller-main.js"]
