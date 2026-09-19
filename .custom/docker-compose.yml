@@ -85,7 +85,7 @@ services:
       args:
         APP_VERSION: "0.2.0"
     image: truefoundry-server:latest
-    command: ["node", "dist/controller-main.js"]
+    command: ["node", "node_modules/@truefoundry/trueforge/dist/controller-main.js"]
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
