@@ -231,6 +231,8 @@ export const ListModelProvidersResponseSchema = z
   })
   .openapi('ListModelProvidersResponse');
 
+export const DeleteModelProviderResponseSchema = z.object({}).openapi('DeleteModelProviderResponse');
+
 /** Provider identity on the models list read view. */
 export const AvailableModelProviderSchema = z
   .object({
@@ -260,6 +262,7 @@ export const ListAvailableModelsResponseSchema = z
   .openapi('ListAvailableModelsResponse');
 
 export type ModelProviderManifest = z.infer<typeof ModelProviderManifestSchema>;
+export type ConfiguredModel = z.infer<typeof ConfiguredModelSchema>;
 export type ConfiguredModelProvider = z.infer<typeof ConfiguredModelProviderSchema>;
 export type CreateModelProviderRequest = z.infer<typeof CreateModelProviderRequestSchema>;
 export type UpdateModelProviderRequest = z.infer<typeof UpdateModelProviderRequestSchema>;

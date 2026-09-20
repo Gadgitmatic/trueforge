@@ -367,6 +367,7 @@ providers:
             - high
             - max
   - type: opencode-go
+    # Seed presets only — the server refreshes this roster from GET {base_url}/models on save.
     models:
       - model_id: glm-5.3-flash
         name: glm-5-3-flash
