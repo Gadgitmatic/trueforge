@@ -59,6 +59,7 @@ if typing.TYPE_CHECKING:
     from .custom_model_provider import CustomModelProvider
     from .daytona_sandbox_provider_auth import DaytonaSandboxProviderAuth
     from .delete_agent_response import DeleteAgentResponse
+    from .delete_model_provider_response import DeleteModelProviderResponse
     from .delete_schedule_response import DeleteScheduleResponse
     from .dynamic_sub_agents_config import DynamicSubAgentsConfig
     from .extended_chunk_delta_tool_call import ExtendedChunkDeltaToolCall
@@ -298,6 +299,7 @@ _dynamic_imports: typing.Dict[str, str] = {
     "CustomModelProvider": ".custom_model_provider",
     "DaytonaSandboxProviderAuth": ".daytona_sandbox_provider_auth",
     "DeleteAgentResponse": ".delete_agent_response",
+    "DeleteModelProviderResponse": ".delete_model_provider_response",
     "DeleteScheduleResponse": ".delete_schedule_response",
     "DynamicSubAgentsConfig": ".dynamic_sub_agents_config",
     "ExtendedChunkDeltaToolCall": ".extended_chunk_delta_tool_call",
@@ -561,6 +563,7 @@ __all__ = [
     "CustomModelProvider",
     "DaytonaSandboxProviderAuth",
     "DeleteAgentResponse",
+    "DeleteModelProviderResponse",
     "DeleteScheduleResponse",
     "DynamicSubAgentsConfig",
     "ExtendedChunkDeltaToolCall",

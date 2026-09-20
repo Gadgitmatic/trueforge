@@ -51,6 +51,7 @@ export * from "./CronExpression.js";
 export * from "./CustomModelProvider.js";
 export * from "./DaytonaSandboxProviderAuth.js";
 export * from "./DeleteAgentResponse.js";
+export * from "./DeleteModelProviderResponse.js";
 export * from "./DeleteScheduleResponse.js";
 export * from "./DynamicSubAgentsConfig.js";
 export * from "./ExtendedChunkDeltaToolCall.js";

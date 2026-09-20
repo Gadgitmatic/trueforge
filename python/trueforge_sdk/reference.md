@@ -4327,6 +4327,78 @@ client.settings.model_providers.create_or_update(
 </dl>
 </details>
 
+<details><summary><code>client.settings.model_providers.<a href="src/trueforge_sdk/settings/model_providers/client.py">delete</a>(...) -> DeleteModelProviderResponse</code></summary>
+<dl>
+<dd>
+
+#### 📝 Description
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+Delete a configured model provider by name. Idempotent if already gone.
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### 🔌 Usage
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+```python
+from trueforge_sdk import TrueForge
+
+client = TrueForge(
+    token="<token>",
+    base_url="https://yourhost.com/path/to/api",
+)
+
+client.settings.model_providers.delete(
+    name="name",
+)
+
+```
+</dd>
+</dl>
+</dd>
+</dl>
+
+#### ⚙️ Parameters
+
+<dl>
+<dd>
+
+<dl>
+<dd>
+
+**name:** `str` — Model provider name.
+    
+</dd>
+</dl>
+
+<dl>
+<dd>
+
+**request_options:** `typing.Optional[RequestOptions]` — Request-specific configuration.
+    
+</dd>
+</dl>
+</dd>
+</dl>
+
+
+</dd>
+</dl>
+</details>
+
 ## Settings SandboxProviders
 <details><summary><code>client.settings.sandbox_providers.<a href="src/trueforge_sdk/settings/sandbox_providers/client.py">get</a>() -> GetSandboxProviderResponse</code></summary>
 <dl>
