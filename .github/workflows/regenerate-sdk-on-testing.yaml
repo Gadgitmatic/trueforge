@@ -1,0 +1,89 @@
+name: Regenerate SDK on testing
+
+# Keeps packages/trueforge-sdk and python/trueforge_sdk in sync with the OpenAPI
+# document on the long-lived `testing` branch. The upstream Generate SDK job is
+# GitHub-App powered and main/PR-only, which does not apply to this fork branch.
+#
+# Push-back uses GITHUB_TOKEN: its commits do not re-trigger workflows, and the
+# actor guard below blocks even legacy token pushes, so this cannot loop.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [testing]
+    # Only sources the document is built from; tests and metadata cannot change it.
+    paths:
+      - 'packages/trueforge/src/**'
+      - 'packages/trueforge/scripts/**'
+      - 'packages/trueforge-core/src/**'
+      - '.github/fern/**'
+      - '.github/workflows/regenerate-sdk-on-testing.yaml'
+      - 'scripts/generate-sdk.sh'
+
+concurrency:
+  group: regenerate-sdk-testing
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    name: Regenerate OpenAPI and SDKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # The spec script imports @truefoundry/trueforge-core from its build output.
+      - name: Build trueforge-core
+        run: pnpm --filter @truefoundry/trueforge-core build
+
+      - name: Write OpenAPI document
+        run: pnpm --filter @truefoundry/trueforge openapi:write
+
+      # Same entrypoint as local `pnpm sdk:generate` (re-runs openapi:write; idempotent).
+      # FERN_TOKEN is optional for --local generation (verified); no secret needed here.
+      - name: Generate SDKs
+        run: pnpm sdk:generate
+
+      - name: Commit generated output
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # --porcelain, not `git diff`, so new files count too.
+          # docs/openapi.json is a second copy of the same document (Mintlify); keep it
+          # in the same commit as .github/fern/openapi or the docs site drifts.
+          if [ -z "$(git status --porcelain -- .github/fern/openapi docs/openapi.json packages/trueforge-sdk python/trueforge_sdk pnpm-lock.yaml)" ]; then
+            echo "OpenAPI document and SDKs are already up to date."
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # Bot-authored sdk diffs need a changeset; changeset:sdk-regen is a no-op
+          # when the sdk is already named in a pending file.
+          if [ -n "$(git status --porcelain -- packages/trueforge-sdk ':!packages/trueforge-sdk/.fern')" ]; then
+            pnpm changeset:sdk-regen
+          fi
+
+          git add .github/fern/openapi docs/openapi.json packages/trueforge-sdk python/trueforge_sdk pnpm-lock.yaml .changeset
+          git commit -m 'Regenerate OpenAPI document and SDKs'
+          git push origin "HEAD:refs/heads/$BRANCH"
