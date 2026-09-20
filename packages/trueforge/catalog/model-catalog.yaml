@@ -366,3 +366,14 @@ providers:
           reasoning_efforts:
             - high
             - max
+  - type: opencode-go
+    models:
+      - model_id: glm-5.3-flash
+        name: glm-5-3-flash
+        properties: {}
+      - model_id: glm-5.2
+        name: glm-5-2
+        properties: {}
+      - model_id: kimi-k2.7-code
+        name: kimi-k2-7-code
+        properties: {}

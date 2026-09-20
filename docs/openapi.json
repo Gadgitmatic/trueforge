@@ -746,7 +746,8 @@
           "zai",
           "moonshot",
           "alibaba",
-          "together"
+          "together",
+          "opencode-go"
         ],
         "type": "string"
       },
@@ -3206,6 +3207,7 @@
             "google-gemini": "#/components/schemas/GoogleGeminiModelProvider",
             "moonshot": "#/components/schemas/MoonshotModelProvider",
             "openai": "#/components/schemas/OpenAIModelProvider",
+            "opencode-go": "#/components/schemas/OpencodeGoModelProvider",
             "together": "#/components/schemas/TogetherAIModelProvider",
             "truefoundry": "#/components/schemas/TrueFoundryModelProvider",
             "zai": "#/components/schemas/ZaiModelProvider"
@@ -3233,6 +3235,9 @@
           },
           {
             "$ref": "#/components/schemas/TogetherAIModelProvider"
+          },
+          {
+            "$ref": "#/components/schemas/OpencodeGoModelProvider"
           },
           {
             "$ref": "#/components/schemas/AlibabaModelProvider"
@@ -3302,6 +3307,40 @@
           "type": {
             "enum": [
               "openai"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "auth",
+          "models",
+          "type"
+        ],
+        "type": "object"
+      },
+      "OpencodeGoModelProvider": {
+        "additionalProperties": false,
+        "properties": {
+          "auth": {
+            "$ref": "#/components/schemas/ModelProviderAuth"
+          },
+          "base_url": {
+            "default": "https://opencode.ai/zen/go/v1",
+            "description": "Override of the provider's default API base URL.",
+            "format": "uri",
+            "type": "string"
+          },
+          "models": {
+            "description": "Models exposed by this provider (at least one).",
+            "items": {
+              "$ref": "#/components/schemas/ConfiguredModel"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "type": {
+            "enum": [
+              "opencode-go"
             ],
             "type": "string"
           }
