@@ -9,6 +9,7 @@ from .fireworks_model_provider import FireworksModelProvider
 from .google_gemini_model_provider import GoogleGeminiModelProvider
 from .moonshot_model_provider import MoonshotModelProvider
 from .open_ai_model_provider import OpenAiModelProvider
+from .opencode_go_model_provider import OpencodeGoModelProvider
 from .together_ai_model_provider import TogetherAiModelProvider
 from .true_foundry_model_provider import TrueFoundryModelProvider
 from .zai_model_provider import ZaiModelProvider
@@ -21,6 +22,7 @@ ModelProviderManifest = typing.Union[
     GoogleGeminiModelProvider,
     MoonshotModelProvider,
     OpenAiModelProvider,
+    OpencodeGoModelProvider,
     TogetherAiModelProvider,
     TrueFoundryModelProvider,
     ZaiModelProvider,

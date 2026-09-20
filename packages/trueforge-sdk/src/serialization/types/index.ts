@@ -136,6 +136,7 @@ export * from "./ModelProviderAuth.js";
 export * from "./ModelProviderManifest.js";
 export * from "./MoonshotModelProvider.js";
 export * from "./OpenAiModelProvider.js";
+export * from "./OpencodeGoModelProvider.js";
 export * from "./PermissionResourceType.js";
 export * from "./PreviousTurnIdInput.js";
 export * from "./RawToolCall.js";
