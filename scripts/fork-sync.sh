@@ -8,7 +8,7 @@
 #   main          pure mirror of upstream/main, no fork commits, never checked out for work
 #   deploy/dokploy  main + fork-only deployment mods; upstream is merged in, never rebased
 #
-# If `sync` reports that main carries fork commits, move them to deploy/dokploy and rewind main:
+# If `sync` warns that main carries fork commits, move them to deploy/dokploy and rewind main:
 #   git branch -f main upstream/main
 #   git push origin main:main --force-with-lease
 set -eu
@@ -32,13 +32,15 @@ fetch_all() {
 }
 
 mirror_main() {
-  if ! git merge-base --is-ancestor "refs/heads/$MAIN" "refs/remotes/$UPSTREAM/$UPSTREAM_BRANCH"; then
-    echo "error: $MAIN carries commits $UPSTREAM/$UPSTREAM_BRANCH does not; see the header of $0" >&2
-    exit 1
+  if git merge-base --is-ancestor "refs/heads/$MAIN" "refs/remotes/$UPSTREAM/$UPSTREAM_BRANCH"; then
+    # main is not checked out here, so this only advances the ref, never the worktree.
+    git fetch "$UPSTREAM" "refs/heads/$UPSTREAM_BRANCH:refs/heads/$MAIN"
+    git push "$ORIGIN" "refs/heads/$MAIN:refs/heads/$MAIN"
+    return 0
   fi
-  # main is not checked out here, so this only advances the ref, never the worktree.
-  git fetch "$UPSTREAM" "refs/heads/$UPSTREAM_BRANCH:refs/heads/$MAIN"
-  git push "$ORIGIN" "refs/heads/$MAIN:refs/heads/$MAIN"
+  echo "warning: $MAIN carries fork commits, so it is left alone; once nothing deploys from it:" >&2
+  echo "  git branch -f $MAIN $UPSTREAM/$UPSTREAM_BRANCH" >&2
+  echo "  git push $ORIGIN $MAIN:$MAIN --force-with-lease" >&2
 }
 
 merge_upstream() {
