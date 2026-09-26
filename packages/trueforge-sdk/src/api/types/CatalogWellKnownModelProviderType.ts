@@ -9,6 +9,7 @@ export const CatalogWellKnownModelProviderType = {
     Moonshot: "moonshot",
     Alibaba: "alibaba",
     Together: "together",
+    OpencodeGo: "opencode-go",
 } as const;
 export type CatalogWellKnownModelProviderType =
     (typeof CatalogWellKnownModelProviderType)[keyof typeof CatalogWellKnownModelProviderType];
