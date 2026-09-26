@@ -6,7 +6,9 @@
 #
 # Invariants:
 #   main          pure mirror of upstream/main, no fork commits, never checked out for work
-#   deploy/dokploy  main + fork-only deployment mods; upstream is merged in, never rebased
+#   deploy/dokploy  main + fork-only additions (.custom/, this script) + features not yet
+#                   upstream. Merges upstream in, never rebases. No upstream-owned file is
+#                   touched for deployment, so only unmerged feature code can conflict.
 #
 # If `sync` warns that main carries fork commits, move them to deploy/dokploy and rewind main:
 #   git branch -f main upstream/main
@@ -51,22 +53,12 @@ merge_upstream() {
   fi
   echo "merging $UPSTREAM/$UPSTREAM_BRANCH into $DEPLOY"
   if ! git merge --no-edit "$UPSTREAM/$UPSTREAM_BRANCH"; then
-    files=$(unmerged_files)
-    # Upstream keeps editing the root compose file that this branch deletes on
-    # purpose; that one known conflict is resolved by keeping the deletion.
-    # Anything else needs a human, so the merge is left in place.
-    if [ "$files" = docker-compose.yml ]; then
-      echo "keeping docker-compose.yml deleted (upstream changed the file this branch drops)"
-      git rm -q -f docker-compose.yml
-      git commit --no-edit
-    else
-      echo
-      echo "conflicts:"
-      echo "$files" | sed 's/^/  /'
-      echo
-      echo "resolve, then: git add <files> && git commit --no-edit && git push $ORIGIN $DEPLOY"
-      exit 1
-    fi
+    echo
+    echo "conflicts:"
+    unmerged_files | sed 's/^/  /'
+    echo
+    echo "resolve, then: git add <files> && git commit --no-edit && git push $ORIGIN $DEPLOY"
+    exit 1
   fi
   git push "$ORIGIN" "refs/heads/$DEPLOY:refs/heads/$DEPLOY"
   echo "pushed $DEPLOY"
