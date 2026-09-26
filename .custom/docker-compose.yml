@@ -1,7 +1,13 @@
-# Full-stack Optimized for Dokploy
-# credentials; in-network DB/Redis targets are opinionated here so they do not
-# inherit host-dev localhost values. Postgres/Redis stay off the host network.
-name: trueforge
+# Deploy stack shared by both Dokploy services (production and test). Fork-owned:
+# upstream has no .custom/ directory, so this file never conflicts on sync.
+#
+# Dokploy runs each service as:
+#   docker compose -p <appName> --env-file .custom/.env -f <this file> up -d --build
+# so the project name, and with it the volume and network names, differ per
+# service. Do not add a top-level `name:` - it would compete with `-p`.
+# Secrets, PUBLIC_BASE_URL and IMAGE_TAG come from each service's Dokploy env.
+# In-network DB/Redis targets are opinionated here so they do not inherit
+# host-dev localhost values. Postgres/Redis stay off the host network.
 
 services:
   postgres:
@@ -37,9 +43,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-      args:
-        APP_VERSION: "0.2.0"
-    image: truefoundry-server:latest
+    # Per environment, so a test build can not silently replace the prod image.
+    image: truefoundry-server:${IMAGE_TAG:-latest}
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -82,10 +87,10 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-      args:
-        APP_VERSION: "0.2.0"
-    image: truefoundry-server:latest
-    command: ["node", "node_modules/@truefoundry/trueforge/dist/controller-main.js"]
+    image: truefoundry-server:${IMAGE_TAG:-latest}
+    # From-source image WORKDIR is /app/packages/trueforge; the npm-install
+    # layout (node_modules/@truefoundry/trueforge) only exists in Dockerfile.npm.
+    command: ["node", "dist/controller-main.js"]
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
