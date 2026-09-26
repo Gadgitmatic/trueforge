@@ -49,14 +49,22 @@ merge_upstream() {
   fi
   echo "merging $UPSTREAM/$UPSTREAM_BRANCH into $DEPLOY"
   if ! git merge --no-edit "$UPSTREAM/$UPSTREAM_BRANCH"; then
-    echo
-    echo "conflicts:"
-    unmerged_files | sed 's/^/  /'
-    unmerged_files | grep -qx 'docker-compose.yml' &&
-      echo "  docker-compose.yml is deleted here by design: 'git rm docker-compose.yml' keeps it deleted"
-    echo
-    echo "resolve, then: git add <files> && git commit --no-edit && git push $ORIGIN $DEPLOY"
-    exit 1
+    files=$(unmerged_files)
+    # Upstream keeps editing the root compose file that this branch deletes on
+    # purpose; that one known conflict is resolved by keeping the deletion.
+    # Anything else needs a human, so the merge is left in place.
+    if [ "$files" = docker-compose.yml ]; then
+      echo "keeping docker-compose.yml deleted (upstream changed the file this branch drops)"
+      git rm -q -f docker-compose.yml
+      git commit --no-edit
+    else
+      echo
+      echo "conflicts:"
+      echo "$files" | sed 's/^/  /'
+      echo
+      echo "resolve, then: git add <files> && git commit --no-edit && git push $ORIGIN $DEPLOY"
+      exit 1
+    fi
   fi
   git push "$ORIGIN" "refs/heads/$DEPLOY:refs/heads/$DEPLOY"
   echo "pushed $DEPLOY"
