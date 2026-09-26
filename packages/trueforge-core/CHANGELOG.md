@@ -1,5 +1,25 @@
 # @truefoundry/trueforge-core
 
+## 0.3.0-rc.0
+
+### Minor Changes
+
+- 829ac6e: Add OSS web-search provider settings and catalog (Parallel): singleton settings/catalog APIs, optional API key, and UI adapter without mode config so built-in web search works outside TrueFoundry mode.
+- cf55de9: Add Redis Sentinel + TLS with exclusive transport fail-fast (`REDIS_CONNECTION` DU). Redis is optional at config load for controller/migrate; server still requires it at connect. Sentinel shared-client errors no longer stop the peering heartbeat.
+
+### Patch Changes
+
+- 5b209be: Persist exact streamed reasoning_content on model.message session events (omit from thread context).
+- 1b1050a: [truefoundry] Surface nested `Error.cause` and the sandbox URL when TFY sandbox fetch calls fail, so undici "fetch failed" errors include ECONNREFUSED (and similar) instead of an opaque message. Log when a TFY sandbox file upload starts and finishes.
+
+## 0.2.1
+
+### Patch Changes
+
+- f905d9f: Keep a shared remote MCP transport open while sibling tool calls are in flight so a session-expired reset cannot fail them with a non-retried close error.
+- 6a97f6a: Block RFC1918, CGNAT, reserved, link-local, and loopback destinations on outbound MCP and model-provider HTTP, plus in-cluster hostnames, with optional host allow/block lists and NETWORK_POLICY_ENABLED (default on).
+- e5e651c: Upload TFY sandbox files via POST /files/upload so large files are not stuffed onto exec argv.
+
 ## 0.2.0
 
 ### Minor Changes

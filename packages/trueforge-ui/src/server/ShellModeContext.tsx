@@ -71,7 +71,7 @@ export type SelectLibraryAgentRequest = {
   agentSpec?: AgentSpec;
 };
 
-export type SettingsSection = 'models' | 'connectors' | 'skills' | 'sandbox';
+export type SettingsSection = 'models' | 'connectors' | 'skills' | 'sandbox' | 'web-search';
 
 export type HistoryAgentFilter = {
   agentId?: string;
@@ -102,6 +102,10 @@ type ShellModeContextValue = {
   /** All-user sessions browser (includes drafts). */
   sessionsOpen: boolean;
   setSessionsOpen: (open: boolean) => void;
+  /** Session shown in the detail-only sharing surface. */
+  sharedSessionId: string | null;
+  openSharedSession: (sessionId: string) => void;
+  closeSharedSession: () => void;
   openLibraryAgent: (agentId: string) => void;
   closeLibraryAgent: () => void;
   schedulesOpen: boolean;
@@ -243,6 +247,7 @@ export function ShellModeProvider({
   const [agentConfigOpenState, setAgentConfigOpenState] = useState(false);
   const [libraryOpenState, setLibraryOpenState] = useState(false);
   const [sessionsOpenState, setSessionsOpenState] = useState(false);
+  const [sharedSessionId, setSharedSessionId] = useState<string | null>(null);
   const [libraryAgentId, setLibraryAgentId] = useState<string | null>(null);
   const [schedulesOpenState, setSchedulesOpenState] = useState(false);
   const [historyAgentFilter, setHistoryAgentFilter] = useState<HistoryAgentFilter | null>(null);
@@ -264,12 +269,33 @@ export function ShellModeProvider({
         setLibraryAgentId(null);
         setSchedulesOpenState(false);
       } else {
-        replaceSessionShareSearch({ view: null });
+        replaceSessionShareSearch({
+          view: null,
+          ...(sharedSessionId == null ? {} : { sessionId: null }),
+        });
       }
+      setSharedSessionId(null);
       setSessionsOpenState(sessionsEnabled && open);
+    },
+    [sessionsEnabled, sharedSessionId],
+  );
+  const openSharedSession = useCallback(
+    (sessionId: string) => {
+      if (!sessionsEnabled) return;
+      setSettingsOpenState(false);
+      setAgentConfigOpenState(false);
+      setLibraryOpenState(false);
+      setLibraryAgentId(null);
+      setSchedulesOpenState(false);
+      setSharedSessionId(sessionId);
+      setSessionsOpenState(true);
     },
     [sessionsEnabled],
   );
+  const closeSharedSession = useCallback(() => {
+    setSharedSessionId(null);
+    replaceSessionShareSearch({ sessionId: null, view: 'sessions' });
+  }, []);
   const setLibraryOpen = useCallback(
     (open: boolean) => {
       if (!isLibraryEnabled) return;
@@ -491,11 +517,12 @@ export function ShellModeProvider({
 
   const isActiveAgentBuilder =
     effectiveMode.status === 'active' && effectiveMode.isMutable && effectiveMode.isCreateAgent;
+  const isBoundAgentBuilder = isActiveAgentBuilder && effectiveMode.agentId != null;
   const openAgentBuilder = useCallback(() => {
     if (!isComposerEnabled) return;
     refreshCapabilities?.();
-    // Returning from an overlay must keep the live draft runtime and its unsaved instructions.
-    if (isActiveAgentBuilder) {
+    // Preserve unsaved drafts, saved builders start fresh when revisited.
+    if (isActiveAgentBuilder && !isBoundAgentBuilder) {
       setSettingsOpen(false);
       setLibraryOpenState(false);
       setLibraryAgentId(null);
@@ -507,6 +534,7 @@ export function ShellModeProvider({
     selectLibraryAgent({ isMutable: true, isCreateAgent: true, agentSpec: agentSeedRef.current });
   }, [
     isActiveAgentBuilder,
+    isBoundAgentBuilder,
     isComposerEnabled,
     refreshCapabilities,
     selectLibraryAgent,
@@ -654,6 +682,9 @@ export function ShellModeProvider({
       setLibraryOpen,
       sessionsOpen,
       setSessionsOpen,
+      sharedSessionId,
+      openSharedSession,
+      closeSharedSession,
       openLibraryAgent,
       closeLibraryAgent,
       schedulesOpen,
@@ -692,6 +723,9 @@ export function ShellModeProvider({
       setLibraryOpen,
       sessionsOpen,
       setSessionsOpen,
+      sharedSessionId,
+      openSharedSession,
+      closeSharedSession,
       openLibraryAgent,
       closeLibraryAgent,
       schedulesOpen,

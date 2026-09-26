@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.0-rc.0
+
+### Minor Changes
+
+- a855122: Rename the published runtime package to `@truefoundry/trueforge-assistant-ui-runtime`, move it into the TrueForge workspace, rename its public runtime APIs to TrueForge, and remove the legacy TrueFoundry server adapter and server configuration.
+- 829ac6e: Add OSS web-search provider settings and catalog (Parallel): singleton settings/catalog APIs, optional API key, and UI adapter without mode config so built-in web search works outside TrueFoundry mode.
+- 829ac6e: Add web-search provider settings catalog port and Settings UI so admins can configure Parallel web search (API key + mode) in standalone/OIDC deployments.
+
+### Patch Changes
+
+- 0da3794: Stop the MCP OAuth opener from closing the popup as soon as the callback broadcasts, so the success/failure screen can show before the popup closes itself.
+- Updated dependencies [829ac6e]
+- Updated dependencies [a855122]
+- Updated dependencies [829ac6e]
+- Updated dependencies [829ac6e]
+  - @truefoundry/trueforge-sdk@0.2.1-rc.0
+  - @truefoundry/trueforge-assistant-ui-runtime@0.2.0-rc.0
+
+## 0.3.1
+
+### Patch Changes
+
+- 56b3a59: Keep newly saved builders editable until the user leaves the build-agent page, then start fresh when they return.
+- a122ba1: Show successful MCP authentication in chat, automatically continue after every required server connects, and indicate while the turn is starting. Confirm OAuth against the chat MCP connector read (`getMcpConnector`) so non-admins are not blocked by settings-only catalog GETs, and ignore authorize callbacks after the prompt unmounts.
+- acad1a1: Add chat-history rename for servers that implement `renameSession`, including TrueForge harness title updates.
+- a08c75a: Show absolute session activity timestamps on hover, label deferred MCP tools in the session timeline, and fix Safari collapsing contentSized modal bodies (flex-auto).
+
 ## 0.3.0
 
 ### Minor Changes
