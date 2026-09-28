@@ -58,6 +58,10 @@ services:
       STANDALONE: "false"
       REDIS_URL: redis://redis:6379
       TRUEFORGE_API_KEY: ${TRUEFORGE_API_KEY:?TRUEFORGE_API_KEY is required}
+      # The outbound URL guard denies CGNAT and Docker ranges by default, so any
+      # in-tailnet MCP/API target needs an explicit allowlist entry.
+      # Override from the Dokploy env: OUTBOUND_URL_ALLOWED_HOSTS='["host","other"]'
+      OUTBOUND_URL_ALLOWED_HOSTS: '${OUTBOUND_URL_ALLOWED_HOSTS:-["kaneo.ts.delar.co"]}'
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       postgres:
