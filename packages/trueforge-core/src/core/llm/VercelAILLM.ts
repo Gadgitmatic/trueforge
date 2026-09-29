@@ -1268,7 +1268,8 @@ export async function* mapStreamToChunks({
       case 'tool-input-delta': {
         const state = toolCallStates.get(part.id);
         // With no matching `tool-input-start` there is no index to attribute this to; emitting it
-        // anyway would append the arguments to an unrelated tool call.
+        // anyway would append the arguments to an unrelated tool call. The arguments are not lost
+        // regardless: the `tool-call` part below carries the SDK's own accumulated input.
         if (state === undefined) {
           break;
         }
@@ -1321,6 +1322,31 @@ export async function* mapStreamToChunks({
         throw aborted;
       }
 
+      case 'tool-call': {
+        // The SDK has already parsed and schema-validated the arguments, so `part.input` is
+        // authoritative — the raw deltas above are only a display-time approximation and can be
+        // lost (no `tool-input-start`), truncated, or diverge from what the SDK actually parsed.
+        // Preferring it here is what keeps a call from arriving at the tool with `{}` because a
+        // delta was dropped. `invalid` calls keep the raw text so the failure stays diagnosable.
+        const state = toolCallStates.get(part.toolCallId) ??
+          // No `tool-input-start` was streamed for this id. Register it so the call is still
+          // executed (and indexed consistently) rather than silently vanishing from the message.
+          {
+            index: nextToolIndex++,
+            id: part.toolCallId,
+            name: part.toolName,
+            arguments: '',
+            thoughtSignature: undefined,
+          };
+        toolCallStates.set(part.toolCallId, state);
+        // A well-formed call carries the parsed value; re-serialise it so the persisted
+        // `tool_calls[].function.arguments` stays the raw-JSON string the rest of the harness
+        // parses. An `invalid` call carries raw text instead (JSON never parsed) — keep it
+        // verbatim so the downstream parse error names the real malformed payload.
+        state.arguments = typeof part.input === 'string' ? part.input : JSON.stringify(part.input ?? {});
+        break;
+      }
+
       case 'start':
       case 'text-start':
       case 'text-end':
@@ -1329,7 +1355,6 @@ export async function* mapStreamToChunks({
       case 'source':
       case 'file':
       case 'reasoning-file':
-      case 'tool-call':
       case 'tool-result':
       case 'tool-error':
       case 'tool-output-denied':

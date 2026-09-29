@@ -536,6 +536,125 @@ describe('mapStreamToChunks', () => {
     expect(final.finish_reason).toBe('tool_calls');
   });
 
+  // The SDK's `tool-call` part is authoritative: it holds the arguments the SDK itself parsed
+  // and schema-validated. Rebuilding from raw deltas alone loses the whole bag whenever a
+  // `tool-input-start` is missing, and the call then reaches the tool as `{}` — which surfaces
+  // far downstream as a confusing `mcp_server: expected string, received undefined`.
+  it('takes tool-call arguments from the SDK part, not from the accumulated deltas', async () => {
+    const { final } = await drainStream(
+      mapStreamToChunks({
+        stream: makeStream([
+          { type: 'tool-input-start', id: 'call-1', toolName: 'call_tool' },
+          { type: 'tool-input-delta', id: 'call-1', delta: '{"mcp_server":"composio"' },
+          {
+            type: 'tool-call',
+            toolCallId: 'call-1',
+            toolName: 'call_tool',
+            input: { mcp_server: 'composio', tool_name: 'COMPOSIO_SEARCH_SKILLS', input: { query: 'email' } },
+          },
+          makeFinishStep('tool-calls'),
+        ]),
+        chunkMeta: CHUNK_META,
+      }),
+    );
+
+    expect(final.output.tool_calls).toEqual([
+      {
+        id: 'call-1',
+        type: 'function',
+        function: {
+          name: 'call_tool',
+          arguments: JSON.stringify({
+            mcp_server: 'composio',
+            tool_name: 'COMPOSIO_SEARCH_SKILLS',
+            input: { query: 'email' },
+          }),
+        },
+      },
+    ]);
+  });
+
+  // A truncated delta stream (max tokens, dropped chunk) is exactly the case that used to
+  // surface as an empty argument bag. The SDK's parsed input survives it.
+  it('recovers full arguments when the delta stream was truncated mid-JSON', async () => {
+    const { final } = await drainStream(
+      mapStreamToChunks({
+        stream: makeStream([
+          { type: 'tool-input-start', id: 'call-1', toolName: 'call_tool' },
+          { type: 'tool-input-delta', id: 'call-1', delta: '{"mcp_server":"compos' },
+          {
+            type: 'tool-call',
+            toolCallId: 'call-1',
+            toolName: 'call_tool',
+            input: { mcp_server: 'composio', tool_name: 'COMPOSIO_SEARCH_TOOLS', input: { queries: ['dns'] } },
+          },
+          makeFinishStep('tool-calls'),
+        ]),
+        chunkMeta: CHUNK_META,
+      }),
+    );
+
+    expect(JSON.parse(final.output.tool_calls?.[0]?.function.arguments ?? '')).toEqual({
+      mcp_server: 'composio',
+      tool_name: 'COMPOSIO_SEARCH_TOOLS',
+      input: { queries: ['dns'] },
+    });
+  });
+
+  // No `tool-input-start` at all: the call must still be executed rather than silently dropped.
+  it('registers a tool call whose tool-input-start never arrived', async () => {
+    const { final } = await drainStream(
+      mapStreamToChunks({
+        stream: makeStream([
+          {
+            type: 'tool-call',
+            toolCallId: 'orphan',
+            toolName: 'call_tool',
+            input: { mcp_server: 'composio', tool_name: 'COMPOSIO_SUBMIT_FEEDBACK' },
+          },
+          makeFinishStep('tool-calls'),
+        ]),
+        chunkMeta: CHUNK_META,
+      }),
+    );
+
+    expect(final.output.tool_calls).toEqual([
+      {
+        id: 'orphan',
+        type: 'function',
+        function: {
+          name: 'call_tool',
+          arguments: JSON.stringify({ mcp_server: 'composio', tool_name: 'COMPOSIO_SUBMIT_FEEDBACK' }),
+        },
+      },
+    ]);
+  });
+
+  // An unparseable call carries raw text in `input`; re-serialising it would double-encode the
+  // string and bury the malformed payload. Keep it verbatim so the parse error names the cause.
+  it('keeps raw text for an invalid tool call instead of double-encoding it', async () => {
+    const { final } = await drainStream(
+      mapStreamToChunks({
+        stream: makeStream([
+          { type: 'tool-input-start', id: 'call-1', toolName: 'call_tool' },
+          { type: 'tool-input-delta', id: 'call-1', delta: '{"mcp_server":' },
+          {
+            type: 'tool-call',
+            toolCallId: 'call-1',
+            toolName: 'call_tool',
+            input: '{"mcp_server":',
+            dynamic: true,
+            invalid: true,
+          },
+          makeFinishStep('tool-calls'),
+        ]),
+        chunkMeta: CHUNK_META,
+      }),
+    );
+
+    expect(final.output.tool_calls?.[0]?.function.arguments).toBe('{"mcp_server":');
+  });
+
   it('captures google thoughtSignature from tool-input-start providerMetadata into provider_specific_fields', async () => {
     const providerMetadata: ProviderMetadata = { google: { thoughtSignature: 'google-sig-abc' } };
     const { final } = await drainStream(

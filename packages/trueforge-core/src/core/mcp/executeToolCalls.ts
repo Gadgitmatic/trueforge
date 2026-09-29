@@ -37,6 +37,34 @@ export interface ExecuteToolCallsResult {
   events: RegisteredPassthroughEvent[];
 }
 
+/**
+ * Parse a tool call's streamed `function.arguments` into the record handed to the tool.
+ *
+ * An empty/whitespace bag is a real failure, not a call with no arguments: it means the argument
+ * stream was lost upstream. Defaulting it to `{}` turned that into a downstream
+ * `mcp_server: expected string, received undefined` from the `call_tool` wrapper's own schema,
+ * which reads as a routing bug and sends the caller hunting in the wrong place. Failing here
+ * names the actual cause and the tool it happened on.
+ */
+function parseToolArguments(toolCall: InternalEnrichedToolCall): Record<string, unknown> {
+  const raw = toolCall.function.arguments;
+  if (raw === undefined || raw.trim() === '') {
+    throw new Error(
+      `Tool '${toolCall.function.name}' (${toolCall.id}) was called with no arguments. ` +
+        `The provider streamed an empty argument payload, which usually means the tool-call ` +
+        `arguments were truncated or dropped. Re-issue the call.`,
+    );
+  }
+  const parsed: unknown = JSON.parse(raw);
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(
+      `Tool '${toolCall.function.name}' (${toolCall.id}) received arguments that are not a JSON object. ` +
+        `Arguments must be an object of named parameters; received ${Array.isArray(parsed) ? 'an array' : typeof parsed}.`,
+    );
+  }
+  return parsed as Record<string, unknown>;
+}
+
 export async function executeToolCalls({
   assistantMessage,
   toolMapping,
@@ -83,7 +111,7 @@ export async function executeToolCalls({
     }
 
     try {
-      const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
+      const args = parseToolArguments(toolCall);
       const response = await toolInfo.toolSet.callTool(
         {
           name: toolInfo.originalToolName,
