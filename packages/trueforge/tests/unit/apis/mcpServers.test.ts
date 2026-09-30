@@ -229,6 +229,29 @@ describe('mcp-servers routers', () => {
     });
   });
 
+  it('DELETE /{name} removes the server and is idempotent', async () => {
+    const createBody = {
+      type: 'remote' as const,
+      name: 'delete-me-mcp',
+      url: 'https://mcp.example.com/delete-me',
+      description: 'Delete-only MCP server.',
+    };
+    const created = await settingsRouter.request('/', postInit(wrapManifest(createBody)));
+    expect(created.status).toBe(201);
+
+    const deleted = await settingsRouter.request('/delete-me-mcp', { method: 'DELETE' });
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({});
+
+    const list = await settingsRouter.request('/');
+    const names = (await list.json()).data.map((server: { manifest: { name: string } }) => server.manifest.name);
+    expect(names).not.toContain('delete-me-mcp');
+
+    // Deleting again is a no-op.
+    const again = await settingsRouter.request('/delete-me-mcp', { method: 'DELETE' });
+    expect(again.status).toBe(200);
+  });
+
   it('PUT and POST reject private outbound URLs', async () => {
     const blocked = {
       type: 'remote' as const,

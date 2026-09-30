@@ -26,6 +26,7 @@ import {
   authorizeMcpServerRoute,
   createMcpServerRoute,
   deleteAuthorizationMcpServerRoute,
+  deleteMcpServerRoute,
   getAvailableMcpServerRoute,
   getMcpServerRoute,
   listAvailableMcpServersRoute,
@@ -364,11 +365,21 @@ export function createSettingsMcpServersRouter<TTransaction>(deps: McpServersRou
     }
   };
 
+  const deleteHandler: RouteHandler<typeof deleteMcpServerRoute> = async c => {
+    const { name } = c.req.valid('param');
+    const requestContext = deps.resolveRequestContext(c);
+    // The row delete cascades oauth_token / oauth_pending_authorization, so this is also the
+    // "forget every user's authorization" path — not just a settings-list cleanup.
+    await deps.resolveMcpServerStore(c).deleteServer({ tenant_id: requestContext.tenant_id, name });
+    return c.json({}, 200);
+  };
+
   const router = new OpenAPIHono();
   router.openapi(listMcpServersRoute, listHandler);
   router.openapi(createMcpServerRoute, createHandler);
   router.openapi(putMcpServerRoute, putHandler);
   router.openapi(getMcpServerRoute, getHandler);
+  router.openapi(deleteMcpServerRoute, deleteHandler);
   return router;
 }
 

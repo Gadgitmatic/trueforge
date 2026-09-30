@@ -43,6 +43,7 @@ const ConnectorSettings = () => {
   const [addMcpServerFormOpen, setAddMcpServerFormOpen] = useState(false);
   const [editingConnector, setEditingConnector] = useState<ConnectorBase | null>(null);
   const [connectorAwaitingKey, setConnectorAwaitingKey] = useState<ConnectorCatalogEntry | null>(null);
+  const [connectorAwaitingDelete, setConnectorAwaitingDelete] = useState<ConnectorBase | null>(null);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorBase | null>(null);
   const [apiKey, setApiKey] = useState('');
 
@@ -220,6 +221,26 @@ const ConnectorSettings = () => {
     }).catch(() => {});
   };
 
+  const closeDeleteModal = useCallback(() => {
+    setConnectorAwaitingDelete(null);
+  }, []);
+
+  const handleDelete = () => {
+    const connector = connectorAwaitingDelete;
+    if (!connector || !connectorCatalog.deleteConnector) {
+      return;
+    }
+    void runMutation(async () => {
+      await connectorCatalog.deleteConnector!({ id: connector.id });
+      setSelectedConnector(current => (current?.id === connector.id ? null : current));
+      setTimeout(() => {
+        toaster?.showSuccess({ title: `${connector.name} removed` });
+      }, 0);
+    })
+      .then(closeDeleteModal)
+      .catch(() => {});
+  };
+
   const handleConnectorRefreshed = (refreshedConnector: ConnectorBase) => {
     setSelectedConnector(current => (current?.id === refreshedConnector.id ? refreshedConnector : current));
     setConnectors(current => {
@@ -305,6 +326,22 @@ const ConnectorSettings = () => {
               <Icon name="pencil" className="size-3" />
               Edit
             </Button.Secondary>
+            {connectorCatalog.deleteConnector ? (
+              <Button.Secondary
+                size="small"
+                type="button"
+                className="transition-colors hover:bg-failure-bg/10 hover:text-failure-bg"
+                disabled={busy}
+                aria-label={`Remove ${connector.name}`}
+                onClick={event => {
+                  event.stopPropagation();
+                  setFormError(null);
+                  setConnectorAwaitingDelete(connector);
+                }}
+              >
+                Remove
+              </Button.Secondary>
+            ) : null}
             <Icon name="chevron-right" className="size-4" />
           </div>
         </article>
@@ -526,6 +563,26 @@ const ConnectorSettings = () => {
                 </Button.Primary>
               </footer>
             </form>
+          </CenteredModal>
+
+          <CenteredModal
+            open={connectorAwaitingDelete !== null}
+            onOpenChange={open => {
+              if (!open) closeDeleteModal();
+            }}
+            title={`Remove ${connectorAwaitingDelete?.name ?? 'connector'}`}
+            description="The connector and every saved authorization for it will be removed from this workspace."
+            contentSized
+            className="md:max-w-xl"
+          >
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <Button.Ghost type="button" onClick={closeDeleteModal} disabled={busy}>
+                Cancel
+              </Button.Ghost>
+              <Button.Primary type="button" onClick={handleDelete} disabled={busy}>
+                Remove
+              </Button.Primary>
+            </footer>
           </CenteredModal>
 
           <AddMcpServerForm

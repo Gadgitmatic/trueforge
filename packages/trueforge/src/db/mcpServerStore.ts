@@ -25,6 +25,11 @@ export interface GetMcpServerInput {
   name: string;
 }
 
+export interface DeleteMcpServerInput {
+  tenant_id: string;
+  name: string;
+}
+
 export interface ListMcpServersInput {
   tenant_id: string;
   /** `undefined` lists all; empty yields no rows without querying. */
@@ -100,6 +105,15 @@ export interface IMcpServerStore<TTransaction = never> extends IOAuthClientStore
    * Never overwrites `id`, `oauth_server`, or `oauth_client`.
    */
   upsertServer(input: UpsertMcpServerInput, transaction?: TTransaction): Promise<McpServerRecord>;
+  /**
+   * Removes the configured server, along with the DCR client columns it carries.
+   *
+   * `oauth_token` and `oauth_pending_authorization` are keyed on the server's `id` (ULID) with
+   * `ON DELETE CASCADE`, so every user's access/refresh token and any in-flight authorization
+   * goes with the row. The store is addressed by `name`, so implementations resolve name → id
+   * first. Idempotent when the server is already gone.
+   */
+  deleteServer(input: DeleteMcpServerInput, transaction?: TTransaction): Promise<void>;
 }
 
 /** Persistence plus authorize / status / revoke and invoke headers. */

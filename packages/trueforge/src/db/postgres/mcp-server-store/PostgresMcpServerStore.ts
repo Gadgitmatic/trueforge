@@ -6,6 +6,7 @@ import {
   McpServerNameConflictError,
   toStoredOAuthClientRecord,
   type CreateMcpServerInput,
+  type DeleteMcpServerInput,
   type GetMcpServerInput,
   type IMcpServerStore,
   type ListMcpServersInput,
@@ -121,6 +122,13 @@ export class PostgresMcpServerStore implements IMcpServerStore<Transaction<Datab
       .returningAll()
       .executeTakeFirstOrThrow();
     return toRecord(row);
+  }
+
+  async deleteServer(input: DeleteMcpServerInput, transaction?: Transaction<Database>): Promise<void> {
+    const db = transaction ?? this.#db;
+    // oauth_token / oauth_pending_authorization reference mcp_server(id) ON DELETE CASCADE, so
+    // every user's tokens and any in-flight authorization disappear with this one statement.
+    await db.deleteFrom('mcp_server').where('tenant_id', '=', input.tenant_id).where('name', '=', input.name).execute();
   }
 
   async getClient(params: { id: string }, transaction?: Transaction<Database>): Promise<OAuthClientRecord | undefined> {

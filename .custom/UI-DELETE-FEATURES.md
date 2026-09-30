@@ -102,30 +102,66 @@ contrib/connector-delete    -> PR upstream, then merge into deploy/dokploy
 - [x] Contract test (store suite) + API test — 16 unit + 10 store tests pass
 - [x] OpenAPI regenerated (`pnpm openapi:write` — 53 paths, route present)
 - [x] `skillCatalog.ts` — implement `deleteSkill` (**lights up the existing button**)
+- [x] Verify on testing URL — clicked **Remove** on `wiki-qa` in the browser,
+      watched it go 3 → 2, restored it
+
+**SDK note — settled, and not the way we expected.** With Docker running,
+`fern generate --group ts-sdk` reports success but writes only **2 of 897 files**
+into `packages/trueforge-sdk/src` (`events.ts`, `index.ts`). The Windows host /
+Linux container volume mount silently drops the rest. The `python-sdk` group
+fails outright (`/fern/ir.json` not found) _after_ wiping the TS SDK, so
+`pnpm sdk:generate` is a **destructive no-op on this machine — do not run it.**
+Run it from WSL2 or a Linux host if a real regen is ever needed.
+
+The `delete()` client method and the two `DeleteSkillResponse` type files are
+therefore hand-written, mirroring generated `modelProviders.delete()` exactly.
+That is not merely cosmetic: the hand-written method is what the deployed app
+executed during the live test, so it is verified end-to-end rather than just
+typechecked. Consequence for sequencing — the "both branches regenerate the SDK"
+conflict that motivated splitting these branches does not apply here, but a
+future regen still has to land separately.
+
+**Test gap — closed.** The store contract suite was first run under SQLite only,
+while production and testing both run Postgres. Re-run with Docker up:
+`PASS tests/db/postgres/skill-store/contract.test.ts`.
+
+**Pre-existing flake spotted.** `PostgresSessionStore ... orders by updated_at
+so later activity ranks ahead of create order` fails intermittently. It seeds
+three sessions, waits **5 ms**, then bumps one, so `updated_at` ties and the
+`ORDER BY` becomes ambiguous — it passed on 2 of 3 runs. Unrelated to this work;
+worth its own fix.
+
+### Phase 2 — Connector delete (`contrib/connector-delete`) — CODE DONE, VERIFYING
+
+- [x] `db/mcpServerStore.ts` — `DeleteMcpServerInput` + `deleteServer()`
+- [x] Postgres + SQLite impls; `McpServerWithAuthStore` passthrough; Inline
+      delegate; TrueFoundry 424
+- [x] Cascade confirmed in schema, not assumed: `oauth_token` and
+      `oauth_pending_authorization` are `ON DELETE CASCADE` on `mcp_server(id)`.
+      SQLite client sets `PRAGMA foreign_keys = ON` (`db/sqlite/client.ts:118`),
+      so the cascade fires on both engines.
+- [x] `schemas/mcpServer.ts` — `DeleteMCPServerResponseSchema`
+- [x] `routes/mcpServerRoutes.ts` — `DELETE /api/v1/settings/mcp-servers/{name}`
+      (no collision with the existing `DELETE /{name}/authorize`)
+- [x] `apis/mcpServers.ts` — handler + register
+- [x] SDK `delete()` + `DeleteMCPServerResponse` (hand-written; see SDK note)
+- [x] `connectorCatalog.ts` — implement `deleteConnector`
+- [x] **New UI**: Remove button on the configured row + `CenteredModal` confirm
+- [x] Tests: 45 unit, store contract on postgres + sqlite, 3 UI (incl. cancel
+      and confirm)
 - [ ] Verify on testing URL
 
-**SDK note:** `pnpm sdk:generate` cannot run here — it needs `jq` (absent on
-Windows) and a Docker daemon for `fern --local` (Docker Desktop not running).
-The client `delete()` method and the two `DeleteSkillResponse` type files were
-hand-written to match the generated shape exactly, then validated with
-`pnpm sdk:types`. A real regen should produce an equivalent file; worth
-re-running where Docker is available before opening the upstream PR.
+**Differences from skill delete, worth knowing:**
 
-### Phase 2 — Connector delete (`contrib/connector-delete`)
-
-- [ ] `db/mcpServerStore.ts` — `DeleteMcpServerInput` + `deleteServer()`
-- [ ] Postgres + SQLite impls; Inline delegate; TrueFoundry 424
-- [ ] Cascade: `oauth_token` / `oauth_pending_authorization` are already
-      `ON DELETE CASCADE` on `mcp_server(id)`. Store keys on `name`, FK is on
-      `id` (ULID) — must resolve name → id first. SQLite needs
-      `PRAGMA foreign_keys = ON` for the cascade to fire.
-- [ ] `schemas/mcpServer.ts` — `DeleteMcpServerResponseSchema`
-- [ ] `routes/mcpServerRoutes.ts` — `DELETE /api/v1/settings/mcp-servers/{name}`
-      (no collision with the existing `DELETE /{name}/authorize`)
-- [ ] `apis/mcpServers.ts` — handler + register
-- [ ] Regenerate SDK
-- [ ] `connectorCatalog.ts` — implement `deleteConnector`
-- [ ] **New UI**: Remove button in `ConnectorSettings.tsx` + `ConnectorDetails.tsx`
+1. **This one is destructive beyond the row.** Deleting a connector revokes
+   every user's authorization for it via the FK cascade. The confirm dialog says
+   so explicitly. That is also why it is the first _confirm-gated_ action in
+   Settings — skills and model providers delete immediately with no prompt.
+2. **MCP names are not `NameSchema`.** `McpServerNameParamsSchema` is
+   `z.string().min(1)`, so `DELETE /Not%20A%20Name` returns 200, not 400. A test
+   asserting 400 here would be wrong; skills do use `NameSchema` and do 400.
+3. `McpServerWithAuthStore` is a decorator over `IMcpServerStore` and needed its
+   own `deleteServer` passthrough — the type check caught it.
 
 ### Phase 3 — Confirmation dialog (both)
 

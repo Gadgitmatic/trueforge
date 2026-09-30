@@ -129,6 +129,9 @@ export const ListMcpServersResponseSchema = z
   })
   .openapi('ListMCPServersResponse');
 
+/** Delete returns no body; an empty object keeps the response shape uniform. */
+export const DeleteMcpServerResponseSchema = z.object({}).openapi('DeleteMCPServerResponse');
+
 /** Public auth mechanism for chat/composer (no secrets). */
 export const McpServerAuthPublicSchema = z
   .discriminatedUnion('type', [

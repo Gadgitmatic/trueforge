@@ -181,4 +181,29 @@ export function runMcpServerStoreContractSuite(getStore: () => IMcpServerStore):
     const store = getStore();
     expect(await store.getClient({ id: 'missing-id' })).toBeUndefined();
   });
+
+  it('deleteServer removes only the named server and is idempotent', async () => {
+    const store = getStore();
+    await store.upsertServer({ tenant_id: TENANT, name: 'linear', manifest: manifest() });
+    await store.upsertServer({
+      tenant_id: TENANT,
+      name: 'notion',
+      manifest: manifest({ name: 'notion' }),
+    });
+    // Same name in another tenant must survive.
+    await store.upsertServer({ tenant_id: 'other', name: 'linear', manifest: manifest() });
+
+    const doomed = await store.getServer({ tenant_id: TENANT, name: 'linear' });
+    await store.saveClient({ id: doomed!.id, record: sampleOAuthClient });
+
+    await store.deleteServer({ tenant_id: TENANT, name: 'linear' });
+
+    const names = (await store.listServers({ tenant_id: TENANT, names: undefined })).map(s => s.name);
+    expect(names).toEqual(['notion']);
+    expect(await store.getServer({ tenant_id: TENANT, name: 'linear' })).toBeUndefined();
+    expect((await store.listServers({ tenant_id: 'other', names: undefined })).map(s => s.name)).toEqual(['linear']);
+
+    // Deleting again is a no-op, not an error.
+    await expect(store.deleteServer({ tenant_id: TENANT, name: 'linear' })).resolves.toBeUndefined();
+  });
 }

@@ -3,6 +3,7 @@ import type {
   AuthorizeMcpServerInput,
   CreateMcpServerInput,
   DeleteMcpAuthorizationInput,
+  DeleteMcpServerInput,
   GetMcpServerInput,
   IMcpServerWithAuthStore,
   ListMcpServersInput,
@@ -100,6 +101,14 @@ export class InlineMcpServerStore<TTransaction = never> implements IMcpServerWit
 
   upsertServer(input: UpsertMcpServerInput, transaction?: TTransaction): Promise<McpServerRecord> {
     return this.#inner.upsertServer(input, transaction);
+  }
+
+  /**
+   * A request-scoped server has no row of its own, so this delegates like every other write here
+   * and leaves the tenant's own servers untouched.
+   */
+  deleteServer(input: DeleteMcpServerInput, transaction?: TTransaction): Promise<void> {
+    return this.#inner.deleteServer(input, transaction);
   }
 
   authorize(input: AuthorizeMcpServerInput): Promise<McpAuthStatus> {

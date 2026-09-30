@@ -7,6 +7,7 @@ import {
   McpServerNameConflictError,
   toStoredOAuthClientRecord,
   type CreateMcpServerInput,
+  type DeleteMcpServerInput,
   type GetMcpServerInput,
   type IMcpServerStore,
   type ListMcpServersInput,
@@ -125,6 +126,13 @@ export class SqliteMcpServerStore implements IMcpServerStore<Transaction<Databas
       )
       .returning(recordColumns)
       .executeTakeFirstOrThrow();
+  }
+
+  async deleteServer(input: DeleteMcpServerInput, transaction?: Transaction<Database>): Promise<void> {
+    const db = transaction ?? this.#db;
+    // oauth_token / oauth_pending_authorization reference mcp_server(id) ON DELETE CASCADE. That only
+    // fires with `PRAGMA foreign_keys = ON`, which the client sets on connect; see db/sqlite/client.
+    await db.deleteFrom('mcp_server').where('tenant_id', '=', input.tenant_id).where('name', '=', input.name).execute();
   }
 
   async getClient(params: { id: string }, transaction?: Transaction<Database>): Promise<OAuthClientRecord | undefined> {

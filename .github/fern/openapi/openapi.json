@@ -1325,6 +1325,10 @@
         "properties": {},
         "type": "object"
       },
+      "DeleteMCPServerResponse": {
+        "properties": {},
+        "type": "object"
+      },
       "DeleteModelProviderResponse": {
         "properties": {},
         "type": "object"
@@ -10671,6 +10675,73 @@
       }
     },
     "/api/v1/settings/mcp-servers/{name}": {
+      "delete": {
+        "description": "Delete a configured MCP server by name, together with every user authorization held for it. Idempotent if already gone.",
+        "parameters": [
+          {
+            "description": "MCP server name.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "MCP server name.",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteMCPServerResponse"
+                }
+              }
+            },
+            "description": "MCP server deleted."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "Not permitted."
+          },
+          "424": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported because MCP servers are managed by an external system."
+          }
+        },
+        "summary": "Delete an MCP server",
+        "tags": [
+          "MCP Servers"
+        ],
+        "x-fern-sdk-group-name": [
+          "settings",
+          "mcpServers"
+        ],
+        "x-fern-sdk-method-name": "delete"
+      },
       "get": {
         "description": "A single MCP server by name, with nested live auth_status (settings / admin projection). Header auth values are redacted.",
         "parameters": [

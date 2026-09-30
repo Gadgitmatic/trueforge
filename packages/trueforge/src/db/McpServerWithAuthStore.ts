@@ -7,6 +7,7 @@ import {
   type AuthorizeMcpServerInput,
   type CreateMcpServerInput,
   type DeleteMcpAuthorizationInput,
+  type DeleteMcpServerInput,
   type GetMcpServerInput,
   type IMcpServerStore,
   type IMcpServerWithAuthStore,
@@ -42,6 +43,14 @@ export class McpServerWithAuthStore<TTransaction = never> implements IMcpServerW
 
   getServerForUpdate(input: GetMcpServerInput, transaction: TTransaction): Promise<McpServerRecord | undefined> {
     return this.#store.getServerForUpdate(input, transaction);
+  }
+
+  /**
+   * Row delete only. The token tables are not addressed through this class — they cascade off the
+   * `mcp_server` row in the underlying store, so every user's authorization goes with it.
+   */
+  deleteServer(input: DeleteMcpServerInput, transaction?: TTransaction): Promise<void> {
+    return this.#store.deleteServer(input, transaction);
   }
 
   createServer(input: CreateMcpServerInput, transaction?: TTransaction): Promise<McpServerRecord> {

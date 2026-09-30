@@ -69,3 +69,65 @@ describe('ConnectorSettings edit flow', () => {
     });
   });
 });
+
+describe('ConnectorSettings delete flow', () => {
+  const connector: ConnectorBase = {
+    id: 'custom-mcp',
+    name: 'Custom MCP',
+    description: 'Custom tools',
+    url: 'https://mcp.example.com/mcp',
+    authenticated: true,
+    requiresAuth: false,
+    auth: { type: 'header', headerName: 'X-API-Key' },
+  };
+
+  function renderWith(deleteConnector: () => Promise<void>) {
+    const connectorCatalog = {
+      getConnectorCatalog: async () => [],
+      listConnectors: async () => [connector],
+      getConnector: async () => connector,
+      getToolsByConnectorId: async () => [],
+      createConnector: async () => connector,
+      updateConnector: async () => connector,
+      authenticateConnector: async () => ({ authorization_endpoint: '' }),
+      disconnectConnector: async () => connector,
+      deleteConnector,
+    };
+    return render(
+      <ServerProvider server={createMockAgentUIServer({ catalog: createMockCatalog({ connectorCatalog }) })}>
+        <ConnectorSettings />
+      </ServerProvider>,
+    );
+  }
+
+  it('confirms before deleting, and cancel does not call the port', async () => {
+    const deleteConnector = vi.fn(async () => {});
+    renderWith(deleteConnector);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Custom MCP' }));
+
+    // The confirm dialog must appear before anything is deleted.
+    expect(await screen.findByRole('heading', { name: 'Remove Custom MCP' })).toBeInTheDocument();
+    expect(deleteConnector).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Remove Custom MCP' })).not.toBeInTheDocument();
+    });
+    expect(deleteConnector).not.toHaveBeenCalled();
+  });
+
+  it('deletes the connector once confirmed', async () => {
+    const deleteConnector = vi.fn(async () => {});
+    renderWith(deleteConnector);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Custom MCP' }));
+    // Scope to the dialog: the row button's accessible name is "Remove Custom MCP", so the
+    // footer button is the only exact "Remove" match.
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => {
+      expect(deleteConnector).toHaveBeenCalledWith({ id: connector.id });
+    });
+  });
+});
