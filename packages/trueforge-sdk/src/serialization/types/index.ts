@@ -58,6 +58,7 @@ export * from "./DeleteAgentResponse.js";
 export * from "./DeleteModelProviderResponse.js";
 export * from "./DeleteSandboxEnvironmentResponse.js";
 export * from "./DeleteScheduleResponse.js";
+export * from "./DeleteSkillResponse.js";
 export * from "./DynamicSubAgentsConfig.js";
 export * from "./ExtendedChunkDeltaToolCall.js";
 export * from "./FileContent.js";

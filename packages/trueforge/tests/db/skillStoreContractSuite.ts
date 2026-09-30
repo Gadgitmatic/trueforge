@@ -203,4 +203,26 @@ export function runSkillStoreContractSuite(getStore: () => ISkillStore): void {
       message: 'Skill "algorithmic-art": preload is not supported for git skills',
     });
   });
+
+  it('deleteSkill removes only the named skill and is idempotent', async () => {
+    const store = getStore();
+    await store.upsertSkill({ tenant_id: TENANT, name: 'algorithmic-art', manifest: manifest() });
+    await store.upsertSkill({
+      tenant_id: TENANT,
+      name: 'mcp-builder',
+      manifest: manifest({ name: 'mcp-builder', path: 'skills/mcp-builder' }),
+    });
+    // A same-named skill in another tenant must survive the delete.
+    await store.upsertSkill({ tenant_id: 'other', name: 'algorithmic-art', manifest: manifest() });
+
+    await store.deleteSkill({ tenant_id: TENANT, name: 'algorithmic-art' });
+
+    expect((await store.listSkills({ tenant_id: TENANT, names: undefined })).map(s => s.name)).toEqual(['mcp-builder']);
+    expect((await store.listSkills({ tenant_id: 'other', names: undefined })).map(s => s.name)).toEqual([
+      'algorithmic-art',
+    ]);
+
+    // Deleting again is a no-op, not an error.
+    await expect(store.deleteSkill({ tenant_id: TENANT, name: 'algorithmic-art' })).resolves.toBeUndefined();
+  });
 }

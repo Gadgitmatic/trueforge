@@ -4,6 +4,7 @@ import { resolveGitTurnSkills, validateGitAgentSkills } from '../db/gitSkillMoun
 import type {
   AgentSkillsInput,
   CreateSkillInput,
+  DeleteSkillInput,
   ISkillStore,
   ListSkillsInput,
   SkillRecord,
@@ -52,6 +53,14 @@ export class InlineSkillStore<TTransaction = never> implements ISkillStore<TTran
 
   upsertSkill(input: UpsertSkillInput, transaction?: TTransaction): Promise<SkillRecord> {
     return this.#inner.upsertSkill(input, transaction);
+  }
+
+  /**
+   * A request-scoped skill has no row of its own, so this delegates like every other write here and
+   * leaves the tenant's own skills untouched.
+   */
+  deleteSkill(input: DeleteSkillInput, transaction?: TTransaction): Promise<void> {
+    return this.#inner.deleteSkill(input, transaction);
   }
 
   listSkillVersions(input: { name: string }): Promise<SkillVersion[]> {

@@ -36,6 +36,12 @@ export interface CreateSkillInput {
 /** Same shape as create for now; kept as a distinct name for the upsert path. */
 export type UpsertSkillInput = CreateSkillInput;
 
+export interface DeleteSkillInput {
+  tenant_id: string;
+  /** Matches `SkillRecord.name` — the same string AgentSpec `skills[].name` refers to. */
+  name: string;
+}
+
 /** AgentSpec `skills` refs for validate and resolve. */
 export interface AgentSkillsInput {
   tenant_id: string;
@@ -61,6 +67,11 @@ export interface ISkillStore<TTransaction = never> {
   createSkill(input: CreateSkillInput, transaction?: TTransaction): Promise<SkillRecord>;
   /** Single-row write: creates the skill or replaces the whole manifest. */
   upsertSkill(input: UpsertSkillInput, transaction?: TTransaction): Promise<SkillRecord>;
+  /**
+   * Removes the configured skill. Idempotent when the skill is already gone, and scoped to the
+   * tenant so one tenant can never delete another's skill by guessing a name.
+   */
+  deleteSkill(input: DeleteSkillInput, transaction?: TTransaction): Promise<void>;
   listSkillVersions(input: { name: string }): Promise<SkillVersion[]>;
   /** Admit AgentSpec skill refs (git store or TrueFoundry SFY resolve with caller token). */
   validateAgentSkills(input: AgentSkillsInput, transaction?: TTransaction): Promise<void>;

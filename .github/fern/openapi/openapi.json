@@ -762,7 +762,8 @@
           "zai",
           "moonshot",
           "alibaba",
-          "together"
+          "together",
+          "opencode-go"
         ],
         "type": "string"
       },
@@ -1324,11 +1325,19 @@
         "properties": {},
         "type": "object"
       },
+      "DeleteModelProviderResponse": {
+        "properties": {},
+        "type": "object"
+      },
       "DeleteSandboxEnvironmentResponse": {
         "properties": {},
         "type": "object"
       },
       "DeleteScheduleResponse": {
+        "properties": {},
+        "type": "object"
+      },
+      "DeleteSkillResponse": {
         "properties": {},
         "type": "object"
       },
@@ -3350,6 +3359,7 @@
             "google-gemini": "#/components/schemas/GoogleGeminiModelProvider",
             "moonshot": "#/components/schemas/MoonshotModelProvider",
             "openai": "#/components/schemas/OpenAIModelProvider",
+            "opencode-go": "#/components/schemas/OpencodeGoModelProvider",
             "together": "#/components/schemas/TogetherAIModelProvider",
             "truefoundry": "#/components/schemas/TrueFoundryModelProvider",
             "zai": "#/components/schemas/ZaiModelProvider"
@@ -3377,6 +3387,9 @@
           },
           {
             "$ref": "#/components/schemas/TogetherAIModelProvider"
+          },
+          {
+            "$ref": "#/components/schemas/OpencodeGoModelProvider"
           },
           {
             "$ref": "#/components/schemas/AlibabaModelProvider"
@@ -3446,6 +3459,40 @@
           "type": {
             "enum": [
               "openai"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "auth",
+          "models",
+          "type"
+        ],
+        "type": "object"
+      },
+      "OpencodeGoModelProvider": {
+        "additionalProperties": false,
+        "properties": {
+          "auth": {
+            "$ref": "#/components/schemas/ModelProviderAuth"
+          },
+          "base_url": {
+            "default": "https://opencode.ai/zen/go/v1",
+            "description": "Override of the provider's default API base URL.",
+            "format": "uri",
+            "type": "string"
+          },
+          "models": {
+            "description": "Models exposed by this provider (at least one).",
+            "items": {
+              "$ref": "#/components/schemas/ConfiguredModel"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "type": {
+            "enum": [
+              "opencode-go"
             ],
             "type": "string"
           }
@@ -10836,6 +10883,80 @@
         "x-fern-sdk-method-name": "create_or_update"
       }
     },
+    "/api/v1/settings/model-providers/{name}": {
+      "delete": {
+        "description": "Delete a configured model provider by name. Idempotent if already gone.",
+        "parameters": [
+          {
+            "description": "Model provider name.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ResourceName"
+                },
+                {
+                  "description": "Model provider name."
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteModelProviderResponse"
+                }
+              }
+            },
+            "description": "Model provider deleted."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "OIDC is configured and the request has no valid session cookie."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "OIDC is configured and the caller is authenticated but not an admin."
+          },
+          "424": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported operation because the model providers are managed by external system"
+          }
+        },
+        "summary": "Delete a model provider",
+        "tags": [
+          "Models"
+        ],
+        "x-fern-sdk-group-name": [
+          "settings",
+          "modelProviders"
+        ],
+        "x-fern-sdk-method-name": "delete"
+      }
+    },
     "/api/v1/settings/sandbox-providers": {
       "get": {
         "description": "The single configured sandbox provider for this tenant. `auth.api_key` is redacted.",
@@ -11088,6 +11209,80 @@
           "skills"
         ],
         "x-fern-sdk-method-name": "create_or_update"
+      }
+    },
+    "/api/v1/settings/skills/{name}": {
+      "delete": {
+        "description": "Delete a configured skill by name. Idempotent if already gone.",
+        "parameters": [
+          {
+            "description": "Skill name.",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ResourceName"
+                },
+                {
+                  "description": "Skill name."
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteSkillResponse"
+                }
+              }
+            },
+            "description": "Skill deleted."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "Not permitted."
+          },
+          "424": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported because skills are managed by an external system."
+          }
+        },
+        "summary": "Delete a skill",
+        "tags": [
+          "Skills"
+        ],
+        "x-fern-sdk-group-name": [
+          "settings",
+          "skills"
+        ],
+        "x-fern-sdk-method-name": "delete"
       }
     },
     "/api/v1/settings/web-search-providers": {

@@ -4,10 +4,12 @@
  * /api/v1/skills.
  * Discovery catalog lives at GET /api/v1/catalogs/skills.
  */
-import { createRoute } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { NameSchema } from '../schemas/common';
 import { RequestErrorResponseSchema } from '../schemas/errors';
 import {
   CreateSkillRequestSchema,
+  DeleteSkillResponseSchema,
   GetSkillResponseSchema,
   ListAvailableSkillsResponseSchema,
   ListSkillVersionsRequestQuerySchema,
@@ -142,6 +144,39 @@ export const putSkillRoute = createRoute({
     400: {
       content: { 'application/json': { schema: RequestErrorResponseSchema } },
       description: 'Invalid request body.',
+    },
+    424: {
+      content: { 'application/json': { schema: RequestErrorResponseSchema } },
+      description: 'Unsupported because skills are managed by an external system.',
+    },
+  },
+});
+
+const SkillNameParamsSchema = z.object({
+  name: NameSchema.describe('Skill name.'),
+});
+
+export const deleteSkillRoute = createRoute({
+  method: 'delete',
+  path: '/{name}',
+  tags: [OpenApiTag.SKILLS],
+  summary: 'Delete a skill',
+  description: 'Delete a configured skill by name. Idempotent if already gone.',
+  'x-fern-sdk-group-name': ['settings', 'skills'],
+  'x-fern-sdk-method-name': 'delete',
+  request: { params: SkillNameParamsSchema },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: DeleteSkillResponseSchema } },
+      description: 'Skill deleted.',
+    },
+    401: {
+      content: { 'application/json': { schema: RequestErrorResponseSchema } },
+      description: 'Unauthenticated.',
+    },
+    403: {
+      content: { 'application/json': { schema: RequestErrorResponseSchema } },
+      description: 'Not permitted.',
     },
     424: {
       content: { 'application/json': { schema: RequestErrorResponseSchema } },

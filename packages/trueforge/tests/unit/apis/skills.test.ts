@@ -110,6 +110,33 @@ describe('skills routers', () => {
     });
   });
 
+  it('DELETE /{name} removes the skill and is idempotent', async () => {
+    const createBody = {
+      ...putBody,
+      name: 'delete-me-skill',
+      path: 'skills/delete-me-skill',
+    };
+    const created = await settingsRouter.request('/', postInit(wrapManifest(createBody)));
+    expect(created.status).toBe(201);
+
+    const deleted = await settingsRouter.request('/delete-me-skill', { method: 'DELETE' });
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({});
+
+    const list = await settingsRouter.request('/');
+    const names = (await list.json()).data.map((skill: { name: string }) => skill.name);
+    expect(names).not.toContain('delete-me-skill');
+
+    // Deleting again is a no-op.
+    const again = await settingsRouter.request('/delete-me-skill', { method: 'DELETE' });
+    expect(again.status).toBe(200);
+  });
+
+  it('DELETE /{name} rejects a malformed name at the Zod layer', async () => {
+    const response = await settingsRouter.request('/Not%20A%20Name', { method: 'DELETE' });
+    expect(response.status).toBe(400);
+  });
+
   it('GET / on the chat router returns name and description for git skills', async () => {
     const response = await availableRouter.request('/');
     expect(response.status).toBe(200);
