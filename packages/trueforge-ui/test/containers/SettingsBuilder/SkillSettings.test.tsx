@@ -30,6 +30,8 @@ const catalogEntry: SkillCatalogEntry = {
 function createFakeHost(initial: DefinedSkill[] = []) {
   let defined = [...initial];
   const created: CreateSkillRequest[] = [];
+  /** Ids passed to deleteSkill, so tests can assert nothing is deleted pre-confirm. */
+  const deleted: string[] = [];
 
   const skillCatalog = {
     getSkillCatalog: async () => [catalogEntry],
@@ -53,6 +55,7 @@ function createFakeHost(initial: DefinedSkill[] = []) {
       return skill;
     },
     deleteSkill: async ({ id }: { id: string }) => {
+      deleted.push(id);
       defined = defined.filter(skill => skill.id !== id);
     },
   };
@@ -63,6 +66,7 @@ function createFakeHost(initial: DefinedSkill[] = []) {
 
   return {
     created,
+    deleted,
     getDefined: () => defined,
     wrapper: ({ children }: { children: ReactNode }) => <ServerProvider server={server}>{children}</ServerProvider>,
   };
@@ -98,7 +102,7 @@ describe('SkillSettings', () => {
   });
 
   it('returns a removed registry skill to Available', async () => {
-    const { wrapper: Wrapper } = createFakeHost([
+    const host = createFakeHost([
       {
         id: 'db-cat-code-review',
         name: catalogEntry.name,
@@ -106,6 +110,7 @@ describe('SkillSettings', () => {
         catalogId: catalogEntry.id,
       },
     ]);
+    const { wrapper: Wrapper } = host;
 
     render(
       <Wrapper>
@@ -114,6 +119,9 @@ describe('SkillSettings', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Remove Code Review' }));
+    // Skill delete is confirm-gated like every other destructive Settings action.
+    expect(host.deleted).toEqual([]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Enable Code Review' })).toBeTruthy();
@@ -137,11 +145,36 @@ describe('SkillSettings', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Remove House Style' }));
+    // Nothing is deleted until the confirm dialog is accepted.
+    expect(host.deleted).toEqual([]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
 
     await waitFor(() => {
       expect(screen.queryByText('House Style')).toBeNull();
     });
     expect(host.getDefined()).toEqual([]);
+  });
+
+  it('cancelling the remove dialog leaves the skill enabled', async () => {
+    const host = createFakeHost([{ id: 'db-house-style', name: 'House Style', description: 'Style guide.' }]);
+    const { wrapper: Wrapper } = host;
+
+    render(
+      <Wrapper>
+        <SkillSettings />
+      </Wrapper>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove House Style' }));
+    expect(await screen.findByRole('heading', { name: 'Remove House Style' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Remove House Style' })).toBeNull();
+    });
+    expect(host.deleted).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Remove House Style' })).toBeTruthy();
   });
 
   it('imports a github skill without a type discriminant', async () => {

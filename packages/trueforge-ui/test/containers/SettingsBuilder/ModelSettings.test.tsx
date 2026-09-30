@@ -101,3 +101,53 @@ describe('ModelSettings custom provider editing', () => {
     });
   });
 });
+
+describe('ModelSettings remove provider', () => {
+  function renderWith(deleteModelProvider: ReturnType<typeof vi.fn>) {
+    const server = createMockAgentUIServer({
+      catalog: createMockCatalog({
+        modelCatalog: {
+          getModelProviderCatalog: async () => [],
+          listModelProviders: async () => [builtInProvider],
+          createModelProvider: vi.fn(),
+          updateModelProvider: vi.fn(),
+          deleteModelProvider,
+        },
+      }),
+    });
+    render(
+      <ServerProvider server={server}>
+        <ModelSettings />
+      </ServerProvider>,
+    );
+  }
+
+  it('does not delete until the confirm dialog is accepted', async () => {
+    const deleteModelProvider = vi.fn(async () => {});
+    renderWith(deleteModelProvider);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove OpenAI' }));
+    expect(await screen.findByRole('heading', { name: 'Remove OpenAI' })).toBeInTheDocument();
+    expect(deleteModelProvider).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => {
+      expect(deleteModelProvider).toHaveBeenCalledWith({ id: 'openai' });
+    });
+  });
+
+  it('cancelling keeps the provider', async () => {
+    const deleteModelProvider = vi.fn(async () => {});
+    renderWith(deleteModelProvider);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove OpenAI' }));
+    expect(await screen.findByRole('heading', { name: 'Remove OpenAI' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Remove OpenAI' })).toBeNull();
+    });
+    expect(deleteModelProvider).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Remove OpenAI' })).toBeInTheDocument();
+  });
+});

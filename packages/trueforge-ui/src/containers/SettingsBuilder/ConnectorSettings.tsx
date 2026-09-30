@@ -7,6 +7,7 @@ import { auiInputClass } from '@/atoms/lib/inputClasses.js';
 import { Button } from '@/atoms/primitives/Button.js';
 import { CatalogLogo } from '@/atoms/primitives/CatalogLogo.js';
 import { CenteredModal } from '@/atoms/primitives/CenteredModal.js';
+import { ConfirmDeleteDialog } from '@/atoms/primitives/ConfirmDeleteDialog.js';
 import SearchInput from '@/atoms/primitives/SearchInput.js';
 import { Icon } from '@/icons/Icon.js';
 import { useCatalogServer } from '@/server/ServerContext.js';
@@ -565,25 +566,15 @@ const ConnectorSettings = () => {
             </form>
           </CenteredModal>
 
-          <CenteredModal
+          <ConfirmDeleteDialog
             open={connectorAwaitingDelete !== null}
-            onOpenChange={open => {
-              if (!open) closeDeleteModal();
-            }}
-            title={`Remove ${connectorAwaitingDelete?.name ?? 'connector'}`}
+            itemName={connectorAwaitingDelete?.name ?? 'connector'}
+            itemLabel="connector"
             description="The connector and every saved authorization for it will be removed from this workspace."
-            contentSized
-            className="md:max-w-xl"
-          >
-            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
-              <Button.Ghost type="button" onClick={closeDeleteModal} disabled={busy}>
-                Cancel
-              </Button.Ghost>
-              <Button.Primary type="button" onClick={handleDelete} disabled={busy}>
-                Remove
-              </Button.Primary>
-            </footer>
-          </CenteredModal>
+            busy={busy}
+            onCancel={closeDeleteModal}
+            onConfirm={handleDelete}
+          />
 
           <AddMcpServerForm
             open={addMcpServerFormOpen}

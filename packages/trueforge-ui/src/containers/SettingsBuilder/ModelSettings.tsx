@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/atoms/primitives/Button.js';
 import { CatalogLogo } from '@/atoms/primitives/CatalogLogo.js';
+import { ConfirmDeleteDialog } from '@/atoms/primitives/ConfirmDeleteDialog.js';
 import SearchInput from '@/atoms/primitives/SearchInput.js';
 import ConfigureModelProviderForm, {
   type ModelProviderKeyDraft,
@@ -41,6 +42,7 @@ const ModelSettings = () => {
   const [keyError, setKeyError] = useState<string | null>(null);
   const [customProviderOpen, setCustomProviderOpen] = useState(false);
   const [customProviderToEdit, setCustomProviderToEdit] = useState<ModelProviderBase | null>(null);
+  const [providerAwaitingDelete, setProviderAwaitingDelete] = useState<ModelProviderBase | null>(null);
 
   const modelProviderIconMap = useMemo(() => {
     return (catalog ?? []).reduce(
@@ -183,10 +185,26 @@ const ModelSettings = () => {
 
   const handleRemoveProvider = (provider: ModelProviderBase) => {
     if (!modelCatalog.deleteModelProvider) return;
+    setFormError(null);
+    setProviderAwaitingDelete(provider);
+  };
 
+  const closeDeleteModal = useCallback(() => {
+    setProviderAwaitingDelete(null);
+  }, []);
+
+  const confirmRemoveProvider = () => {
+    const provider = providerAwaitingDelete;
+    const deleteModelProvider = modelCatalog.deleteModelProvider;
+    if (!provider || !deleteModelProvider) return;
     void runMutation(async () => {
-      await modelCatalog.deleteModelProvider!({ id: provider.id });
-    }).catch(() => {});
+      await deleteModelProvider({ id: provider.id });
+      setTimeout(() => {
+        toaster?.showSuccess({ title: `${provider.name} removed` });
+      }, 0);
+    })
+      .then(closeDeleteModal)
+      .catch(() => {});
   };
 
   const handleUpdateModels = (provider: ModelProviderBase, models: ModelEntry[]) => {
@@ -363,6 +381,7 @@ const ModelSettings = () => {
                                 className="transition-colors hover:bg-failure-bg/10 hover:text-failure-bg"
                                 type="button"
                                 disabled={busy}
+                                aria-label={`Remove ${provider.name}`}
                                 onClick={() => {
                                   handleRemoveProvider(provider);
                                 }}
@@ -532,6 +551,16 @@ const ModelSettings = () => {
           />
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        open={providerAwaitingDelete !== null}
+        itemName={providerAwaitingDelete?.name ?? 'model provider'}
+        itemLabel="model provider"
+        description="The provider and all of its models will be removed from this workspace. Agents still using one of its models will lose access to it."
+        busy={busy}
+        onCancel={closeDeleteModal}
+        onConfirm={confirmRemoveProvider}
+      />
     </>
   );
 };

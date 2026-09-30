@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { Button } from '@/atoms/primitives/Button.js';
+import { ConfirmDeleteDialog } from '@/atoms/primitives/ConfirmDeleteDialog.js';
 import SearchInput from '@/atoms/primitives/SearchInput.js';
 import { Icon } from '@/icons/Icon.js';
 import { useCatalogServer } from '../../server/ServerContext.js';
@@ -33,6 +34,7 @@ const SkillSettings = () => {
   const [busy, setBusy] = useState(false);
   const [managedExternally, setManagedExternally] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [skillAwaitingDelete, setSkillAwaitingDelete] = useState<SkillBase | null>(null);
 
   const refresh = useCallback(async () => {
     if (!skillCatalog) return;
@@ -102,9 +104,28 @@ const SkillSettings = () => {
   const handleRemove = (skill: SkillBase) => {
     const deleteSkill = skillCatalog.deleteSkill;
     if (!deleteSkill) return;
+    setFormError(null);
+    setSkillAwaitingDelete(skill);
+  };
+
+  // Plain function, not useCallback: this sits after the `if (!skillCatalog)` guard, and every
+  // other handler here does too. A hook after an early return would break the rules of hooks.
+  const closeDeleteModal = () => {
+    setSkillAwaitingDelete(null);
+  };
+
+  const confirmRemove = () => {
+    const skill = skillAwaitingDelete;
+    const deleteSkill = skillCatalog.deleteSkill;
+    if (!skill || !deleteSkill) return;
     void runMutation(async () => {
       await deleteSkill({ id: skill.id });
-    }).catch(() => {});
+      setTimeout(() => {
+        toaster?.showSuccess({ title: `${skill.name} removed` });
+      }, 0);
+    })
+      .then(closeDeleteModal)
+      .catch(() => {});
   };
 
   const handleImport = async (draft: SkillConfigBase) => {
@@ -263,6 +284,15 @@ const SkillSettings = () => {
         onImport={handleImport}
         busy={busy || managedExternally}
         error={formError}
+      />
+
+      <ConfirmDeleteDialog
+        open={skillAwaitingDelete !== null}
+        itemName={skillAwaitingDelete?.name ?? 'skill'}
+        itemLabel="skill"
+        busy={busy || managedExternally}
+        onCancel={closeDeleteModal}
+        onConfirm={confirmRemove}
       />
     </>
   );
