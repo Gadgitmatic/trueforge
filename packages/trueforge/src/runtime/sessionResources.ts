@@ -1,4 +1,4 @@
-import type { AgentSpec, SessionHandle } from '@truefoundry/trueforge-core/agent-session';
+import type { AgentSpec } from '@truefoundry/trueforge-core/agent-session';
 import {
   Sandbox,
   SkillMounter,
@@ -13,123 +13,23 @@ import {
 import { HTTPException } from 'hono/http-exception';
 import { join } from 'node:path';
 import type { Logger } from 'winston';
-import { z } from 'zod';
-import configuration, { isTrueFoundryModeEnabled } from '../config';
+import configuration from '../config';
 import type { IMcpServerStore, IMcpServerWithAuthStore } from '../db/mcpServerStore';
 import type { IModelProviderStore } from '../db/modelProviderStore';
+import type { ISandboxEnvironmentStore } from '../db/sandboxEnvironmentStore';
 import type { ISandboxProviderStore } from '../db/sandboxProviderStore';
 import type { ISkillStore } from '../db/skillStore';
+import type { TurnMetadata } from '../db/turnMetadata';
 import type { IWebSearchProviderStore } from '../db/webSearchProviderStore';
 import { LocalSandboxProvider } from '../sandbox/local/provider/LocalSandboxProvider';
 import { getCachedLocalSandboxSupport, isLocalSandboxFallbackEnabled } from '../sandbox/localRuntime';
-import { toSandboxProviderFromRecord } from '../sandbox/providerUtils';
+import { toDaytonaSandboxProvider, toSandboxProviderFromRecord } from '../sandbox/providerUtils';
 import type { ReasoningEffort } from '../schemas/modelProvider';
 import { hasConfiguredWebSearchProvider } from '../websearch/providers';
 
 export interface McpConnection {
   url: string;
   headers: RemoteMcpHeaders;
-}
-
-/** Gateway header carrying stringified JSON metadata. */
-export const X_TFY_METADATA = 'x-tfy-metadata';
-
-/** Prefix for harness-owned keys */
-export const TFG_METADATA_PREFIX = 'tfg';
-
-const GatewayMetadataSchema = z.record(z.string().min(1), z.string());
-
-/**
- * Parse inbound `x-tfy-metadata`. Rejects malformed values rather than dropping them.
- */
-export function parseGatewayMetadataHeader(raw: string): Record<string, string> {
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch (error) {
-    throw new HTTPException(400, { message: `${X_TFY_METADATA} must be a JSON object`, cause: error });
-  }
-  const parsed = GatewayMetadataSchema.safeParse(decoded);
-  if (!parsed.success) {
-    throw new HTTPException(400, {
-      message: `${X_TFY_METADATA} must be a JSON object of string values`,
-    });
-  }
-  return parsed.data;
-}
-
-export function buildGatewayMetadata(input: { session: SessionHandle; turnId: string }): Record<string, string> {
-  // Session.metadata is intentionally omitted for now (Unicode-in-header risk); re-add later.
-  const metadata: Record<string, string> = {
-    [`${TFG_METADATA_PREFIX}.session_id`]: input.session.session_id,
-    [`${TFG_METADATA_PREFIX}.turn_id`]: input.turnId,
-  };
-  const { agent } = input.session;
-  if (agent.type === 'reference') {
-    metadata[`${TFG_METADATA_PREFIX}.agent_id`] = agent.id;
-    if (agent.name !== null) {
-      metadata[`${TFG_METADATA_PREFIX}.agent_name`] = agent.name;
-    }
-  }
-  return metadata;
-}
-
-/** Caller requestMetadata first; harness tfg.* always win */
-export function mergeGatewayMetadata(input: {
-  session: SessionHandle;
-  turnId: string;
-  requestMetadata?: Record<string, string> | undefined;
-}): Record<string, string> {
-  return {
-    ...input.requestMetadata,
-    ...buildGatewayMetadata({ session: input.session, turnId: input.turnId }),
-  };
-}
-
-export function gatewayMetadataHeaders(metadata: Record<string, string>): Record<string, string> {
-  if (Object.keys(metadata).length === 0) {
-    return {};
-  }
-  return { [X_TFY_METADATA]: JSON.stringify(metadata) };
-}
-
-/**
- * Per-turn gateway headers for LLM/MCP calls: harness tfg.* stamps over caller
- * metadata. Empty outside TrueFoundry mode. Every turn start must wire this in.
- */
-export function gatewayTurnHeaders(input: {
-  session: SessionHandle;
-  turnId: string;
-  requestMetadata?: Record<string, string> | undefined;
-}): Record<string, string> {
-  if (!isTrueFoundryModeEnabled()) {
-    return {};
-  }
-  return gatewayMetadataHeaders(mergeGatewayMetadata(input));
-}
-
-/**
- * Merge gateway metadata into MCP invoke headers. Preserves authRequired;
- * metadata is applied after auth/per-server headers.
- */
-export function withGatewayMetadataHeaders(input: {
-  headers: RemoteMcpHeaders;
-  metadataHeaders: Record<string, string>;
-}): RemoteMcpHeaders {
-  const { headers, metadataHeaders } = input;
-  if (Object.keys(metadataHeaders).length === 0) {
-    return headers;
-  }
-  if (typeof headers !== 'function') {
-    return { ...headers, ...metadataHeaders };
-  }
-  return async () => {
-    const result = await headers();
-    if ('authRequired' in result) {
-      return result;
-    }
-    return { headers: { ...result.headers, ...metadataHeaders } };
-  };
 }
 
 /** Split `provider/model` FQN. Returns undefined when the shape is not exactly one slash. */
@@ -153,10 +53,12 @@ export async function getModelDetails({
   tenant_id,
   name,
   store,
+  turnMetadata,
 }: {
   tenant_id: string;
   name: string;
   store: IModelProviderStore;
+  turnMetadata?: TurnMetadata;
 }): Promise<{
   providerConfig: VercelAIProviderConfig;
   defaultModelParams: ModelParams;
@@ -195,7 +97,7 @@ export async function getModelDetails({
       name,
       baseUrl,
       apiKey: provider.manifest.auth?.api_key ?? '',
-      headers: {},
+      headers: turnMetadata === undefined ? {} : await store.resolveInvokeHeaders({ record: provider, turnMetadata }),
     },
     defaultModelParams: model.properties.max_output_tokens ? { max_tokens: model.properties.max_output_tokens } : {},
     modelProperties: { contextLength: model.properties.context_length },
@@ -213,11 +115,13 @@ export async function getMcpConnection({
   name,
   store,
   userRef,
+  turnMetadata,
 }: {
   tenant_id: string;
   name: string;
   store: IMcpServerWithAuthStore;
   userRef: string;
+  turnMetadata?: TurnMetadata;
 }): Promise<McpConnection | undefined> {
   const record = await store.getServer({ tenant_id, name });
   if (record === undefined) {
@@ -225,7 +129,11 @@ export async function getMcpConnection({
   }
   return {
     url: record.manifest.url,
-    headers: store.resolveInvokeHeaders({ record, userRef }),
+    headers: store.resolveInvokeHeaders({
+      record,
+      userRef,
+      ...(turnMetadata === undefined ? {} : { turnMetadata }),
+    }),
   };
 }
 
@@ -233,6 +141,13 @@ export async function getMcpConnection({
  * Build a runtime SandboxProvider from the configured store row, or the
  * in-memory local fallback when standalone + the cached probe is supported.
  * Builds a fresh provider client per call (no network I/O).
+ *
+ * When `environment_name` is set (and not the reserved `default`), loads that
+ * sandbox environment by tenant + name (must be `active`) — no subject ownership
+ * check so anyone who can run the agent can use its env. `default` falls through
+ * to the tenant provider. Env create overlays use Daytona only (switch on
+ * provider type). For `image.type === 'build'` pins the snapshot to the
+ * environment version `external_ref`.
  */
 /** Single path segment under the sandboxes parent (`_` when sessionId is missing or unsafe). */
 export function localSandboxSessionSegment(sessionId: string | undefined): string {
@@ -242,20 +157,83 @@ export function localSandboxSessionSegment(sessionId: string | undefined): strin
   return sessionId;
 }
 
+export interface ResolvedSandboxProvider {
+  provider: SandboxProvider;
+  /**
+   * True when cloning an environment's built snapshot (`external_ref`).
+   * Callers should skip the tenant provider release-snapshot readiness check.
+   */
+  usesEnvironmentSnapshot: boolean;
+}
+
 export async function resolveSandboxProvider({
   tenant_id,
   store,
   logger,
   sessionId,
+  environment_name,
+  sandboxEnvironmentStore,
 }: {
   tenant_id: string;
   store: ISandboxProviderStore;
   logger: Logger;
   sessionId: string;
-}): Promise<SandboxProvider | undefined> {
+  environment_name: string | undefined;
+  sandboxEnvironmentStore: ISandboxEnvironmentStore;
+}): Promise<ResolvedSandboxProvider | undefined> {
   const record = await store.getSandboxProvider(tenant_id);
+
+  // Reserved `default` means the tenant sandbox provider (no env overlay).
+  if (environment_name && environment_name !== 'default') {
+    const loaded = await sandboxEnvironmentStore.getEnvironment({
+      tenant_id,
+      name: environment_name,
+    });
+    if (loaded === undefined) {
+      throw new HTTPException(422, {
+        message: `Unknown sandbox environment "${environment_name}" — not configured`,
+      });
+    }
+    if (loaded.version.status !== 'active') {
+      throw new HTTPException(422, {
+        message:
+          loaded.version.status === 'failed'
+            ? `Sandbox environment "${environment_name}" build failed (${loaded.version.status_reason ?? 'unknown error'})`
+            : `Sandbox environment "${environment_name}" is not ready (status: ${loaded.version.status}) — retry shortly`,
+      });
+    }
+    if (record === undefined) {
+      throw new HTTPException(422, {
+        message: `Sandbox environment "${environment_name}" requires a sandbox provider — configure via PUT /settings/sandbox-providers`,
+      });
+    }
+    const usesEnvironmentSnapshot = loaded.version.manifest.image?.type === 'build';
+    switch (record.manifest.type) {
+      case 'daytona':
+        return {
+          provider: toDaytonaSandboxProvider({
+            manifest: record.manifest,
+            tenant_id,
+            logger,
+            build_metadata: usesEnvironmentSnapshot
+              ? { build_ref: loaded.version.external_ref }
+              : record.build_metadata,
+            environment: loaded.version.manifest,
+          }),
+          usesEnvironmentSnapshot,
+        };
+      default:
+        throw new HTTPException(422, {
+          message: `Sandbox environment "${environment_name}" requires a Daytona sandbox provider (configured provider type: "${record.manifest.type}")`,
+        });
+    }
+  }
+
   if (record !== undefined) {
-    return toSandboxProviderFromRecord({ record, tenant_id, logger });
+    return {
+      provider: toSandboxProviderFromRecord({ record, tenant_id, logger }),
+      usesEnvironmentSnapshot: false,
+    };
   }
   if (!configuration.STANDALONE) {
     return undefined;
@@ -264,13 +242,16 @@ export async function resolveSandboxProvider({
   if (support?.supported !== true) {
     return undefined;
   }
-  return new LocalSandboxProvider({
-    sandboxRootPathParent: join(configuration.LOCAL_SANDBOX_ROOT_PARENT, localSandboxSessionSegment(sessionId)),
-    codeModeSocketParentPath: configuration.CODE_MODE_SOCKET_PARENT,
-    support,
-    fileMaxBytesForDownload: configuration.SANDBOX_FILE_MAX_BYTES_FOR_DOWNLOAD,
-    logger,
-  });
+  return {
+    provider: new LocalSandboxProvider({
+      sandboxRootPathParent: join(configuration.LOCAL_SANDBOX_ROOT_PARENT, localSandboxSessionSegment(sessionId)),
+      codeModeSocketParentPath: configuration.CODE_MODE_SOCKET_PARENT,
+      support,
+      fileMaxBytesForDownload: configuration.SANDBOX_FILE_MAX_BYTES_FOR_DOWNLOAD,
+      logger,
+    }),
+    usesEnvironmentSnapshot: false,
+  };
 }
 
 /**
@@ -306,18 +287,22 @@ export function buildTurnSandbox(input: {
 export async function validateAgentSpec({
   spec,
   tenant_id,
+  created_by_subject_id,
   modelProviderStore,
   mcpServerStore,
   skillStore,
   sandboxProviderStore,
+  sandboxEnvironmentStore,
   webSearchProviderStore,
 }: {
   spec: AgentSpec;
   tenant_id: string;
+  created_by_subject_id: string;
   modelProviderStore: IModelProviderStore;
   mcpServerStore: IMcpServerStore;
   skillStore: ISkillStore;
   sandboxProviderStore: ISandboxProviderStore;
+  sandboxEnvironmentStore: ISandboxEnvironmentStore;
   webSearchProviderStore: IWebSearchProviderStore;
 }): Promise<void> {
   const resolved = await getModelDetails({
@@ -370,6 +355,20 @@ export async function validateAgentSpec({
         message: hasSkills
           ? 'skills require a sandbox provider — configure via PUT /settings/sandbox-providers'
           : 'sandbox is enabled but no sandbox provider is configured — PUT /settings/sandbox-providers',
+      });
+    }
+  }
+
+  const environmentName = spec.config.sandbox.environment_name;
+  if (environmentName) {
+    const environment = await sandboxEnvironmentStore.getEnvironment({
+      tenant_id,
+      name: environmentName,
+      created_by_subject_id,
+    });
+    if (environment === undefined) {
+      throw new HTTPException(422, {
+        message: `Unknown sandbox environment "${environmentName}" — not configured`,
       });
     }
   }
