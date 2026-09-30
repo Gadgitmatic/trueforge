@@ -243,8 +243,35 @@ Open issues this work addresses:
 - **#494** No way to fully remove/delete a configured MCP connector (kristopolous)
 - **#498** No way to edit or disable a configured skill (kristopolous)
 
-**Conclusion:** opening a new PR would duplicate #876. The right move is to
-contribute to #876, or close #880 as a duplicate of it — not to compete.
+**Conclusion:** opening a new PR would duplicate #876. Rather than compete,
+contributed to it instead — see below.
+
+## Contribution to #876 (posted 2026-09-30)
+
+Posted a conflict diagnosis on
+[#876](https://github.com/truefoundry/trueforge/pull/876#issuecomment-5918000725)
+and offered to do the resolution. Findings, all verified locally against a trial
+merge of `upstream/main` into `allow-deletion`:
+
+- Branch is 24 commits behind main, 2 ahead.
+- 14 files conflict; 7 are generated SDK/OpenAPI output, so **7 real source
+  files** matter.
+- **6 of the 7 are additive** — their `deleteServer` / `deleteProvider` sit beside
+  main's `resolveInvokeHeaders`. Keeping both sides resolves them.
+- Only `agentStore.ts` + 3 agent-store impls + `TrueFoundryAgentStore` is a real
+  two-way: `listAgentCatalogUsage` vs the pagination in #863.
+- Their `delete*` returns `boolean` (`numDeletedRows > 0n`); ours returns
+  `void`. Theirs is better — it is what lets the route choose between confirm
+  and 409, so ours should defer.
+- Flagged a silent trap: `McpServerWithAuthStore.ts` conflicts because main's
+  `resolveInvokeHeaders` gained `turnMetadata?`. `sessionResources.ts:135` passes
+  it via a **spread**, which defeats TypeScript's excess-property check — so
+  taking "ours" there would not fail the build, it would just stop forwarding it.
+  Impact today is nil (main's body ignores the param), but the signature would
+  diverge from main silently.
+
+#880 left open per decision, as a fallback until #876 lands. Nothing pushed to
+anyone else's branch — the offer stands for `innoavator` to accept or decline.
 
 ## Open questions
 
