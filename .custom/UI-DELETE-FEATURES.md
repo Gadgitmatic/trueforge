@@ -91,18 +91,25 @@ contrib/connector-delete    -> PR upstream, then merge into deploy/dokploy
 - [x] `tsc --noEmit` clean
 - [x] Pushed to `deploy/dokploy` (auto-deploys to testing)
 
-### Phase 1 — Skill delete (`contrib/skill-delete`)
+### Phase 1 — Skill delete (`contrib/skill-delete`) — CODE DONE, VERIFYING
 
-- [ ] `db/skillStore.ts` — add `DeleteSkillInput` + `deleteSkill()` to `ISkillStore`
-- [ ] Postgres + SQLite `skill-store` impls
-- [ ] `TrueFoundrySkillStore` → 424; `InlineSkillStore` → delegate
-- [ ] `schemas/skill.ts` — `DeleteSkillResponseSchema`
-- [ ] `routes/skillRoutes.ts` — `deleteSkillRoute` (`DELETE /{name}`)
-- [ ] `apis/skills.ts` — handler + register
-- [ ] Contract test + API test
-- [ ] Regenerate SDK
-- [ ] `skillCatalog.ts` — implement `deleteSkill` (**lights up the existing button**)
+- [x] `db/skillStore.ts` — add `DeleteSkillInput` + `deleteSkill()` to `ISkillStore`
+- [x] Postgres + SQLite `skill-store` impls
+- [x] `TrueFoundrySkillStore` → 424; `InlineSkillStore` → delegate
+- [x] `schemas/skill.ts` — `DeleteSkillResponseSchema`
+- [x] `routes/skillRoutes.ts` — `deleteSkillRoute` (`DELETE /{name}`)
+- [x] `apis/skills.ts` — handler + register
+- [x] Contract test (store suite) + API test — 16 unit + 10 store tests pass
+- [x] OpenAPI regenerated (`pnpm openapi:write` — 53 paths, route present)
+- [x] `skillCatalog.ts` — implement `deleteSkill` (**lights up the existing button**)
 - [ ] Verify on testing URL
+
+**SDK note:** `pnpm sdk:generate` cannot run here — it needs `jq` (absent on
+Windows) and a Docker daemon for `fern --local` (Docker Desktop not running).
+The client `delete()` method and the two `DeleteSkillResponse` type files were
+hand-written to match the generated shape exactly, then validated with
+`pnpm sdk:types`. A real regen should produce an equivalent file; worth
+re-running where Docker is available before opening the upstream PR.
 
 ### Phase 2 — Connector delete (`contrib/connector-delete`)
 
