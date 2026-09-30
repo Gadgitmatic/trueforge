@@ -149,7 +149,9 @@ worth its own fix.
 - [x] **New UI**: Remove button on the configured row + `CenteredModal` confirm
 - [x] Tests: 45 unit, store contract on postgres + sqlite, 3 UI (incl. cancel
       and confirm)
-- [ ] Verify on testing URL
+- [x] Verify on testing URL — created a probe connector, confirmed the Remove
+      button appears on all 5 rows, opened the dialog, confirmed, and watched it
+      return to 4. Composio still `authenticated`; skills untouched.
 
 **Differences from skill delete, worth knowing:**
 
@@ -173,6 +175,20 @@ worth its own fix.
       for consistency, or leave it as-is to keep the diff small
 
 ---
+
+## Both phases shipped to testing
+
+- `deploy/dokploy` is at `97625fd0` (+ the connector feature).
+- Production is still on `ebd0bbdf` and has **not** been touched.
+- Testing auto-deploy is still not firing on push; both deploys were triggered
+  by hand via Dokploy. Worth fixing before the next sync.
+
+## Correction to an earlier note
+
+The 37 UI type errors reported after the upstream merge (agent-list API shape)
+were **not** merge fallout. They were stale SDK `.d.ts` files, and they clear on
+`pnpm sdk:types` — which the UI `prebuild` already runs. The UI package
+typechecks clean (exit 0, zero errors). Nothing to fix there.
 
 ## Open questions
 
