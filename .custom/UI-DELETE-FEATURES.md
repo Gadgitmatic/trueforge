@@ -190,6 +190,62 @@ were **not** merge fallout. They were stale SDK `.d.ts` files, and they clear on
 `pnpm sdk:types` — which the UI `prebuild` already runs. The UI package
 typechecks clean (exit 0, zero errors). Nothing to fix there.
 
+## Phase 3 — Confirm UX made consistent (DONE, `fcf15b58`)
+
+Connector delete prompted; skills and model providers fired on first click. All
+three now route through a shared `ConfirmDeleteDialog`
+(`atoms/primitives/ConfirmDeleteDialog.tsx`), and skills + model providers gained
+the success toast they were missing.
+
+Each caller supplies its own consequence copy rather than the dialog assuming one:
+
+| Resource       | Copy                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Skill          | "This skill will be removed from this workspace."                                                                  |
+| Connector      | "The connector and every saved authorization for it will be removed…"                                              |
+| Model provider | "The provider and all of its models will be removed… Agents still using one of its models will lose access to it." |
+
+Also gave the model provider Remove button an `aria-label` naming its provider.
+
+**Verified on testing:** all three dialogs open with the right copy; cancel
+closes and deletes nothing; skills (3), providers (1), connectors (4) unchanged;
+0 errors in the server log.
+
+Two things surfaced while doing this:
+
+1. **Model Remove buttons are per-model as well as per-provider.** The per-model
+   trash does a `PUT` that replaces the model list, not a provider delete. Since
+   `models` is `z.array(...).min(1)` (`schemas/modelProvider.ts:73`), removing the
+   _last_ model should fail validation. Not tested destructively against the live
+   `opencode-go` provider. PR #876 handles it by deleting the provider when its
+   last model goes.
+2. `closeDeleteModal` in `SkillSettings` must stay a plain function, not
+   `useCallback` — it sits after the existing `if (!skillCatalog)` guard, and a
+   hook after an early return breaks the rules of hooks. ESLint caught it.
+
+## Upstream status — do not open duplicate PRs
+
+Checked before opening anything:
+
+- **PR #876** `innoavator` — _"allow deleting models, mcp, skills from settings"_,
+  **OPEN**, +3819/−53 over 82 files, currently **CONFLICTING**. Implements all
+  three deletes, a shared confirm dialog, 409 when an agent still references the
+  entry, and last-model-removes-provider. Credits `@Gadgitmatic` for #880 as a
+  co-author.
+- **PR #880** `Gadgitmatic` — model provider delete. **OPEN** (ours).
+- **PR #369** `azaanaliraza` — model provider delete. **OPEN**, overlaps #880.
+- **PR #652** `jayesh9747` — _"discover a provider's models from the provider
+  itself"_, related to the `contrib/opencode-go-models` work.
+
+Open issues this work addresses:
+
+- **#301** Cannot delete configured model providers (devandop)
+- **#494** No way to fully remove/delete a configured MCP connector (kristopolous)
+- **#498** No way to edit or disable a configured skill (kristopolous)
+
+**Conclusion:** opening a new PR would duplicate #876. The right move is to
+contribute to #876, or close #880 as a duplicate of it — not to compete.
+
 ## Open questions
 
 - Should deleting a skill warn if an agent still references it? `ISkillStore`
