@@ -1,5 +1,6 @@
 import type {
   CreateModelProviderInput,
+  DeleteModelProviderInput,
   GetModelProviderForUpdateInput,
   GetModelProviderInput,
   IModelProviderStore,
@@ -53,6 +54,15 @@ export class InlineModelProviderStore<TTransaction = never> implements IModelPro
 
   upsertProvider(input: UpsertModelProviderInput, transaction?: TTransaction): Promise<ModelProviderRecord> {
     return this.#inner.upsertProvider(input, transaction);
+  }
+
+  /**
+   * An inline provider exists only for the request that carried it, so there is no row to remove.
+   * The write is delegated like every other one here; deleting a request-scoped provider is a
+   * no-op that leaves the tenant's own providers untouched.
+   */
+  deleteProvider(input: DeleteModelProviderInput, transaction?: TTransaction): Promise<void> {
+    return this.#inner.deleteProvider(input, transaction);
   }
 
   listModels(input: ListModelProvidersInput, transaction?: TTransaction): Promise<AvailableModel[]> {

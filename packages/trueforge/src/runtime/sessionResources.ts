@@ -21,6 +21,7 @@ import type { ISandboxProviderStore } from '../db/sandboxProviderStore';
 import type { ISkillStore } from '../db/skillStore';
 import type { TurnMetadata } from '../db/turnMetadata';
 import type { IWebSearchProviderStore } from '../db/webSearchProviderStore';
+import { PACKAGE_VERSION } from '../packageVersion';
 import { LocalSandboxProvider } from '../sandbox/local/provider/LocalSandboxProvider';
 import { getCachedLocalSandboxSupport, isLocalSandboxFallbackEnabled } from '../sandbox/localRuntime';
 import { toDaytonaSandboxProvider, toSandboxProviderFromRecord } from '../sandbox/providerUtils';
@@ -54,11 +55,14 @@ export async function getModelDetails({
   name,
   store,
   turnMetadata,
+  sessionId,
 }: {
   tenant_id: string;
   name: string;
   store: IModelProviderStore;
   turnMetadata?: TurnMetadata;
+  /** Stable per-session id; OpenCode Go rejects requests without one. */
+  sessionId?: string;
 }): Promise<{
   providerConfig: VercelAIProviderConfig;
   defaultModelParams: ModelParams;
@@ -97,7 +101,14 @@ export async function getModelDetails({
       name,
       baseUrl,
       apiKey: provider.manifest.auth?.api_key ?? '',
-      headers: turnMetadata === undefined ? {} : await store.resolveInvokeHeaders({ record: provider, turnMetadata }),
+      headers: {
+        ...(turnMetadata === undefined ? {} : await store.resolveInvokeHeaders({ record: provider, turnMetadata })),
+        // OpenCode Go routes and caches per conversation; without a stable session id it rejects
+        // the request. One id per TrueForge session is exactly the lifetime it wants.
+        ...(type === 'opencode-go' && sessionId !== undefined
+          ? { 'x-opencode-session': sessionId, 'user-agent': `TrueForge/${PACKAGE_VERSION}` }
+          : {}),
+      },
     },
     defaultModelParams: model.properties.max_output_tokens ? { max_tokens: model.properties.max_output_tokens } : {},
     modelProperties: { contextLength: model.properties.context_length },
